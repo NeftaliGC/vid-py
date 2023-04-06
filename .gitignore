@@ -105,7 +105,6 @@ celerybeat.pid
 # Environments
 .env
 .venv
-correcciones.md
 env/
 venv/
 ENV/
