@@ -3,7 +3,7 @@
 ## Errores particulares
 ---
 
-- [ ] No encuentra la portada de la cancion al cambiar nombre de archivo desde el menu
+- [X] No encuentra la portada de la cancion al cambiar nombre de archivo desde el menu
 - [ ] Saltar la descarga de un video no disponible en una lista de reproduccion
 
 ## Errores generales

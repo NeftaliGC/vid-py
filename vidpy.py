@@ -83,9 +83,9 @@ format = String que define si se descargara video o audio
 path = ruta de descarga
 rename = String "1" si se renombrara el archivo o "2" si no se renombrara el archivo
 '''
-def download(video, format, path, rename, metadatos):
+def download(video, format, path, rename, meta):
 
-    if(metadatos == "1"):
+    if(meta == "1"):
         ydl_opts = {
             'quiet': True,
             'outtmpl': path + '%(title)s.%(ext)s',
@@ -100,19 +100,19 @@ def download(video, format, path, rename, metadatos):
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         video_info = ydl.extract_info(video, download=False)
-        name = video_info.get('title', None)
+        full_name = video_info.get('title', None)
         extesion = video_info.get('ext', None)
         thumbnail_url = video_info.get('thumbnail', None)
 
-        print("Video: " + name)
+        print("Video: " + full_name)
         
         if(rename == "1"):
-            name = title(name)
+            name = title(full_name)
         
         name = formatTitle(name)
 
     print("")
-    print("Se descargara: " + name)
+    print("Se descargara: " + full_name + " con el nombre de archivo: " + name)
 
     sleep(3)
     print("Descargando... Porfavor Espere.")
@@ -123,9 +123,12 @@ def download(video, format, path, rename, metadatos):
         full_path = os.path.join(os.getcwd(), filename)        
 
     if(format == "audio"):
-        convertTo(full_path, path, name, metadatos, "mp3")
+        convertTo(full_path, path, name, "mp3")
+        if(meta == "1"):
+            imgPath = path + full_name + ".webp"
+            metadatos(path, name, path_img=imgPath)
     elif(format == "video"):
-        convertTo(full_path, path, name, meta, "mp4")
+        convertTo(full_path, path, name, "mp4")
 
     print("La descarga de " + name + " ha finalizado.")
 
@@ -161,22 +164,6 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
 
     for i in tqdm(range(len(videos_links)), desc=f"Descargando {plys_title}:"):
         download(videos_links[i], "audio", path=p, rename= rename, metadatos= metadatos)
-
-
-    """ print("")
-    print("Descargando: " + playl.title)
-
-    nVideos = playl.length
-
-    for i in tqdm(range(nVideos), desc="Descargando playlist: "):
-
-        video = playl.videos[i]
-
-        print("")
-        download(video, "audio", path=p, rename=rename, metadatos=metadatos)
-        print("") """
-
-
 
 ############################################################
 '''
@@ -280,7 +267,7 @@ def metadatos(p, n, path_img):
 #############################################################
 # funcion que convierte mp4 a mp3
 #############################################################
-def convertTo(full_Path, path, name, meta, extension):
+def convertTo(full_Path, path, name, extension):
 
     if(os.path.exists(path) == False):
         print("El archivo no existe")
@@ -309,8 +296,6 @@ def convertTo(full_Path, path, name, meta, extension):
         print("Eliminando Archivos... Finalizado")
 
 
-    if(meta == "1"):
-        metadatos(path, name, path_img=path + name + ".webp")
 
 if __name__ == "__main__":
     main()
