@@ -4,7 +4,7 @@
 ---
 
 - [X] No encuentra la portada de la cancion al cambiar nombre de archivo desde el menu
-- [ ] Saltar la descarga de un video no disponible en una lista de reproduccion
+- [X] Saltar la descarga de un video no disponible en una lista de reproduccion
 
 ## Errores generales
 ---
@@ -22,6 +22,12 @@
 - [ ] Separar codigo
 
 ## Manejo de excepciones en: 
+---
 
 - [ ] Playlist no disponibles
 - [ ] Manejo de seleccion (Menu)
+
+### Errores no listados que fueron corregidos durante la correccion de otros errores:
+---
+
+- Al descargar una playlist y decidir no cambiar nombres de archivo el programa se rompia.

@@ -109,7 +109,7 @@ def download(video, format, path, rename, meta):
         if(rename == "1"):
             name = title(full_name)
         
-        name = formatTitle(name)
+        name = formatTitle(full_name)
 
     print("")
     print("Se descargara: " + full_name + " con el nombre de archivo: " + name)
@@ -141,11 +141,15 @@ rename = String "1" si se renombrara el archivo o "2" si no se renombrara el arc
 '''
 def downloadPlaylist(playl, extesion, rename, metadatos, nV):
 
+    if(nV == None):
+        id = 1
+    else:
+        id = int(nV)
+
     ydl_opts = {
         'quiet': True,
-        'dump_single_json': True,
-        'skip_playlist_after_errors': True,
-        'playliststart': nV
+        'ignoreerrors': True,  # Ignorar errores y continuar descargando otros videos
+        'no_warnings': True,  # No mostrar advertencias
     }
     
     print("\nPreparando todo para descargar, esto puede tardar unos minutos...")
@@ -155,15 +159,30 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
         playlist_info = ydl.extract_info(playl, download=False)
         plys_title = playlist_info.get('title')
         
-    videos = playlist_info['entries']
+    videos = playlist_info['entries'] if 'entries' in playlist_info else None
 
-    videos_links = [video['webpage_url'] for video in videos]
+    if videos is None:
+        print("La lista de reproducción no tiene videos válidos.")
+        return
+
+    videos_links = []  
+    for i, video in enumerate(videos, start=id):
+        if video is None:
+            print(f"El video #{i} no está disponible. Se omite.")
+            continue
+        
+        if 'webpage_url' not in video:
+            print(f"El video #{i} no tiene una URL válida. Se omite.")
+            continue
+
+        video_url = video['webpage_url']
+        videos_links.append(video_url)
 
 
     p = downloadPath() + plys_title + "/"
 
     for i in tqdm(range(len(videos_links)), desc=f"Descargando {plys_title}:"):
-        download(videos_links[i], "audio", path=p, rename= rename, metadatos= metadatos)
+        download(videos_links[i], "audio", path=p, rename=rename, meta = metadatos)
 
 ############################################################
 '''
