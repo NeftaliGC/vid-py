@@ -10,7 +10,7 @@
 ---
 
 - [ ] Mejorar manejo de rutas
-- [ ] Busacar un metodo para obtener portadas
+- [ ] Buscar un metodo para obtener portadas
 - [ ] Mejorar la inserccion de metadatos
 
 ## Estetica
