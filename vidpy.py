@@ -1,14 +1,12 @@
 import yt_dlp
-
-from moviepy.editor import *
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TRCK, APIC
 from tqdm import tqdm
+import json
 from time import sleep
 import os
-from data import meta
-from PIL import Image
-import json
+
+from metadata import metadatos
+from formater import formatTitle, title
+from convert import convertTo
 
 ############################################################################
 '''
@@ -109,7 +107,7 @@ def download(video, format, path, rename, meta):
         if(rename == "1"):
             name = title(full_name)
         
-        name = formatTitle(full_name)
+        name = formatTitle(name)
 
     print("")
     print("Se descargara: " + full_name + " con el nombre de archivo: " + name)
@@ -184,50 +182,7 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
     for i in tqdm(range(len(videos_links)), desc=f"Descargando {plys_title}:"):
         download(videos_links[i], "audio", path=p, rename=rename, meta = metadatos)
 
-############################################################
-'''
-Reformatea el nombre del archivo para evitar caracteres incompatibles
-title = nombre del archivo
 
-return Titulo reformateado sin caracteres incompatibles
-'''
-def formatTitle(title):
-    titleFormat = ""
-    add = ""
-
-    for char in title:
-        for c in {"<", ">", ":", '"', "|", "?", "*", "/", ";", "."}:
-            if(char != c):
-                add = char
-            else:
-                add = " "
-                break
-                
-        titleFormat += add
-        add = ""
-
-    return titleFormat
-
-############################################################
-'''
-Permite escribir un nombre a los archivos que descarga el usuario
-rot = nombre del video
-'''
-def title(rot):
-
-    print("¿Deseas cambiar el nombre del archivo?")
-    opt = input("1- Si | 2- No: ")
-
-    tit = rot
-
-    if(opt == "1"):
-
-        print("")
-        tit = input("Escribe el nombre del archivo: ")
-
-        return tit
-    else:
-        return tit
 #############################################################
 def downloadPath():
     print("¿Deseas cambiar la ruta de descarga?")
@@ -243,77 +198,6 @@ def downloadPath():
 #############################################################
 # funcion que valida si la ruta de descarga existe
 #############################################################
-
-#############################################################
-# funcion que agrega los metadatos de las canciones
-#############################################################
-def metadatos(p, n, path_img):
-
-    thumbnail = Image.open(path_img)
-    thumbnail.convert("RGB").save(p + n + ".jpg", "JPEG")
-    os.remove(path_img)
-
-    data = meta(n)
-
-    print("\nLos metadatos encontrados son: ")
-    print("Titulo: " + data[0])
-    print("Artista: " + data[1])
-    print("Album: " + data[2])
-
-    o = input("Son correctos? 1- Si 2- No: ")
-    print(" ")
-    if o == "2":
-        data = input("Escribe los metadatos separados por comas: ")
-        data = data.split(",")
-    
-
-    print("\nAgregando metadatos...")
-    song = MP3(p + n + ".mp3")
-    song_tags = ID3()
-
-    song_tags.add(TIT2(encoding=3, text=data[0]))
-    song_tags.add(TPE1(encoding=3, text=data[1]))
-    song_tags.add(TALB(encoding=3, text=data[2]))
-    song_tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=open(p + n + ".jpg", 'rb').read()))
-
-    song_tags.save(p + n + ".mp3", v2_version=3)
-    sleep(3)
-    print("Agregando metadatos... Finalizado")
-    os.remove(p + n + ".jpg")
-
-    
-
-#############################################################
-# funcion que convierte mp4 a mp3
-#############################################################
-def convertTo(full_Path, path, name, extension):
-
-    if(os.path.exists(path) == False):
-        print("El archivo no existe")
-        return
-
-    if(extension == "mp3"):
-        print("\nConvirtiendo a mp3...")
-        video = VideoFileClip(full_Path)
-        video.audio.write_audiofile(path + name + ".mp3")
-        print("Convirtiendo a mp3... Finalizado")
-        video.close()
-
-        print("\nEliminando archivos...")
-        os.remove(full_Path)
-        print("Eliminando archivos... Finalizado")
-
-    elif(extension == "mp4"):
-        print("\nConviertiendo a mp4...")
-        video = VideoFileClip(full_Path)
-        video.write_videofile(path + name + ".mp4")
-        print("Conviertiendo a mp4... Finalizado")
-        video.close()
-
-        print("\nEliminando Archivos...")
-        os.remove(full_Path)
-        print("Eliminando Archivos... Finalizado")
-
 
 
 if __name__ == "__main__":
