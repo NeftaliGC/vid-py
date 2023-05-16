@@ -19,7 +19,7 @@
 - [ ] Agregar espacios al seleccionar una opcion del menu
 - [ ] Mejorar barra de progreso en la descarga de una playlist
 - [ ] Agregar una interfas intuitiva
-- [ ] Separar codigo
+- [X] Separar codigo
 
 ## Manejo de excepciones en: 
 ---
@@ -31,3 +31,4 @@
 ---
 
 - Al descargar una playlist y decidir no cambiar nombres de archivo el programa se rompia.
+- No se encontraba la portada al tener en el titulo del video caracteres invalidos.
