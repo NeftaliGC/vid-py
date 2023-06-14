@@ -26,6 +26,7 @@
 
 - [ ] Playlist no disponibles
 - [ ] Manejo de seleccion (Menu)
+- [ ] Bloqueo de API
 
 ### Errores no listados que fueron corregidos durante la correccion de otros errores:
 ---
