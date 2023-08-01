@@ -39,6 +39,8 @@ def download(video, format, path, rename, meta):
         
         if(rename == "1"):
             name = title(full_name)
+        else:
+            name = full_name
         
         name = formatTitle(name)
 
@@ -81,6 +83,7 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
         'quiet': True,
         'ignoreerrors': True,  # Ignorar errores y continuar descargando otros videos
         'no_warnings': True,  # No mostrar advertencias
+        'playliststart': id,  # Descargar desde el video #
     }
     
     print("\nPreparando todo para descargar, esto puede tardar unos minutos...")
