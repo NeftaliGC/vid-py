@@ -49,6 +49,11 @@ Tenga en cuenta que el uso de la API de Spotify puede estar sujeto a límites y 
 
 - Python 3.x
 - ydlp biblioteca de Python instalada (solo para la linea de comandos)
+- tqdm
+- moviepy
+- spotipy
+- mutagen
+- Pillow
 
 ## Contribuir
 
