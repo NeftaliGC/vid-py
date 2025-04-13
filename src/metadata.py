@@ -1,4 +1,4 @@
-from data import meta
+#from data import meta
 from time import sleep
 import os
 from PIL import Image
