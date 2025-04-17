@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import *
+from moviepy import *
 
 #############################################################
 # funcion que convierte mp4 a mp3

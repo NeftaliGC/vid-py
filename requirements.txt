@@ -4,3 +4,4 @@ moviepy
 spotipy
 mutagen
 Pillow
+fastapi
