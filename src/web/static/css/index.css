@@ -116,14 +116,14 @@ html, body {
 
 .site-main {
     flex: 1;
-    padding: 2rem; /* opcional: para que no se pegue a los bordes */
+    padding: 0.5rem; /* opcional: para que no se pegue a los bordes */
 }
 
 .container {
     display: flex;
     max-width: 800px;
-    margin: 0 auto;
-    padding: 2rem;
+    margin: 0 auto 1rem auto;
+    padding: 1rem;
     flex-direction: column;
     align-items: center;
     background-color: var(--oxford-blue);
@@ -167,12 +167,13 @@ html, body {
     background-color: var(--penn-blue);
     padding: 1rem;
     border-radius: 8px;
+    width: 50%;
 }
 
 .thumbnail-preview img {
-    margin-top: 1rem;
-    width: 100%;
-    max-width: 480px;
+    margin-top: 0.5rem;
+    width: 90%;
+    max-width: 60%;
     border-radius: 8px;
 }
 

@@ -1,56 +1,58 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>{% block title %}VidPy{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Special+Gothic&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/index.css">
-</head>
-<body>
-    {% include 'partials/header.html' %}
+    <head>
+        <meta charset="UTF-8">
+        <title>{% block title %}VidPy{% endblock %}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Special+Gothic&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="/static/css/index.css">
+    </head>
+    <body>
+        {% include 'partials/header.html' %}
 
-    <main class="site-main">
-        {% block content %}{% endblock %}
+        <main class="site-main">
+            {% block content %}{% endblock %}
 
-        <div class="qa-zone">
-            <details>
-                <summary>¿Qué es Vid-Py?</summary>
-                <p>
-                    Vid-Py es una herramienta diseñada para facilitar la descarga de videos y música de YouTube. Su objetivo es proporcionar una forma sencilla y rápida de obtener contenido multimedia de la plataforma.
-                    Sin embargo, es importante recordar que el uso de esta herramienta debe ser responsable y respetar los derechos de autor y las políticas de YouTube.
-                </p>
-            </details>
+            <div class="qa-zone">
+                <details>
+                    <summary>¿Qué es Vid-Py?</summary>
+                    <p>
+                        Vid-Py es una herramienta diseñada para facilitar la descarga de videos y música de YouTube. Su objetivo es proporcionar una forma sencilla y rápida de obtener contenido multimedia de la plataforma.
+                        Sin embargo, es importante recordar que el uso de esta herramienta debe ser responsable y respetar los derechos de autor y las políticas de YouTube.
+                    </p>
+                </details>
 
-            <details>
-                <summary>¿Cómo funciona?</summary>
-                <p>
-                    Para utilizar Vid-Py, simplemente ingresa el enlace del video de YouTube que deseas descargar en el campo correspondiente. Luego, selecciona si deseas descargar el video completo o solo el audio. La herramienta procesará tu solicitud y te proporcionará un enlace para la descarga.
-                    Ten en cuenta que la velocidad de descarga puede variar según el tamaño del archivo y tu conexión a Internet.
-                </p>
-            </details>
+                <details>
+                    <summary>¿Cómo funciona?</summary>
+                    <p>
+                        Para utilizar Vid-Py, simplemente ingresa el enlace del video de YouTube que deseas descargar en el campo correspondiente. Luego, selecciona si deseas descargar el video completo o solo el audio. La herramienta procesará tu solicitud y te proporcionará un enlace para la descarga.
+                        Ten en cuenta que la velocidad de descarga puede variar según el tamaño del archivo y tu conexión a Internet.
+                    </p>
+                </details>
 
-            <details>
-                <summary>¿Es legal descargar videos de YouTube?</summary>
-                <p>
-                    La legalidad de descargar videos de YouTube depende del contenido y de las leyes de derechos de autor en tu país. En general, descargar contenido protegido por derechos de autor sin el permiso del titular puede infringir las leyes locales o internacionales.
-                    Te recomendamos que solo descargues contenido que esté permitido para su descarga o que tengas el derecho a hacerlo.
-                    Además, ten en cuenta que YouTube tiene sus propias políticas y términos de servicio que debes respetar.
-                </p>
-            </details>
+                <details>
+                    <summary>¿Es legal descargar videos de YouTube?</summary>
+                    <p>
+                        La legalidad de descargar videos de YouTube depende del contenido y de las leyes de derechos de autor en tu país. En general, descargar contenido protegido por derechos de autor sin el permiso del titular puede infringir las leyes locales o internacionales.
+                        Te recomendamos que solo descargues contenido que esté permitido para su descarga o que tengas el derecho a hacerlo.
+                        Además, ten en cuenta que YouTube tiene sus propias políticas y términos de servicio que debes respetar.
+                    </p>
+                </details>
 
-            <details>
-                <summary>¿Qué formatos de descarga están disponibles?</summary>
-                <p>
-                    Vid-Py ofrece la opción de descargar videos en varios formatos, incluyendo MP4 para video y MP3 para audio. La disponibilidad de formatos puede variar según el video y su calidad.
-                    Asegúrate de seleccionar el formato que mejor se adapte a tus necesidades antes de iniciar la descarga.
-                </p>
-            </details>
-        </div>
-    </main>
+                <details>
+                    <summary>¿Qué formatos de descarga están disponibles?</summary>
+                    <p>
+                        Vid-Py ofrece la opción de descargar videos en varios formatos, incluyendo MP4 para video y MP3 para audio. La disponibilidad de formatos puede variar según el video y su calidad.
+                        Asegúrate de seleccionar el formato que mejor se adapte a tus necesidades antes de iniciar la descarga.
+                    </p>
+                </details>
+            </div>
+        </main>
 
-    <script src="/static/js/index.js"></script>
-    {% include 'partials/footer.html' %}
-</body>
+        <script src="/static/js/index.js"></script>
+        {% block scripts %}
+        {% endblock %}
+        {% include 'partials/footer.html' %}
+    </body>
 </html>

@@ -1,5 +1,5 @@
 import os
-from moviepy import *
+from moviepy import * # type: ignore
 
 #############################################################
 # funcion que convierte mp4 a mp3
@@ -13,8 +13,11 @@ def convertTo(full_Path, path, name, extension):
     if(extension == "mp3"):
         print("\nConvirtiendo a mp3...")
         video = VideoFileClip(full_Path)
-        video.audio.write_audiofile(path + name + ".mp3")
-        print("Convirtiendo a mp3... Finalizado")
+        if video.audio is not None:
+            video.audio.write_audiofile(path + name + ".mp3")
+            print("Convirtiendo a mp3... Finalizado")
+        else:
+            print("El video no contiene pista de audio.")
         video.close()
 
         print("\nEliminando archivos...")

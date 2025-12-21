@@ -3,8 +3,9 @@ from tqdm import tqdm
 import json
 from time import sleep
 import os
-from formater import formatTitle, title
-from convert import convertTo
+from .formater import formatTitle, title
+from .convert import convertTo
+from .metadata import metadatos
 #############################################################
 '''
 Descarga un video con formato MP4 o MP3 
@@ -31,11 +32,14 @@ def download(video, format, path, rename, meta):
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         video_info = ydl.extract_info(video, download=False)
+        if video_info is None:
+            print("No se pudo obtener la información del video.")
+            return
         full_name = video_info.get('title', None)
         extesion = video_info.get('ext', None)
         thumbnail_url = video_info.get('thumbnail', None)
 
-        print("Video: " + full_name)
+        print("Video: " + str(full_name))
         
         if(rename == "1"):
             name = title(full_name)
@@ -45,7 +49,7 @@ def download(video, format, path, rename, meta):
         name = formatTitle(name)
 
     print("")
-    print("Se descargara: " + full_name + " con el nombre de archivo: " + name)
+    print("Se descargara: " + str(full_name) + " con el nombre de archivo: " + str(name))
 
     sleep(3)
     print("Descargando... Porfavor Espere.")
@@ -91,6 +95,9 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         
         playlist_info = ydl.extract_info(playl, download=False)
+        if playlist_info is None:
+            print("No se pudo obtener la información de la lista de reproducción.")
+            return
         plys_title = playlist_info.get('title')
         
     videos = playlist_info['entries'] if 'entries' in playlist_info else None
@@ -113,7 +120,8 @@ def downloadPlaylist(playl, extesion, rename, metadatos, nV):
         videos_links.append(video_url)
 
 
-    p = downloadPath() + plys_title + "/"
+    safe_title = plys_title if plys_title is not None else "playlist"
+    p = downloadPath() + safe_title + "/"
 
     for i in tqdm(range(len(videos_links)), desc=f"Descargando {plys_title}:"):
         download(videos_links[i], "audio", path=p, rename=rename, meta = metadatos)
@@ -131,3 +139,26 @@ def downloadPath():
         return path
     else:
         return "./download/"
+    
+def getResolutions(video):
+    ydl_opts = {
+        'quiet': True,
+        'format': 'bestvideo+bestaudio/best',
+        'noplaylist': True,
+        'extract_flat': True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        video_info = ydl.extract_info(video, download=False)
+        if video_info is None:
+            print("No se pudo obtener la información del video.")
+            return []
+        
+        formats = video_info.get('formats', [])
+        resolutions = set()
+        
+        for fmt in formats:
+            if 'height' in fmt and fmt['height'] is not None:
+                resolutions.add(fmt['height'])
+        
+        return sorted(resolutions)

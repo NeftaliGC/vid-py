@@ -20,9 +20,19 @@
     </div>
 
     <div class="button-group">
-        <a href="/descargar-video" class="btn" id="videoBtn">Descargar Video</a>
-        <a href="/descargar-audio" class="btn" id="audioBtn">Descargar Audio</a>
+        <label for="resoluciones">Resolución de Descarga:</label>
+        <select id="resoluciones" name="resoluciones">
+            <option value="Auto">Auto</option>
+            {% for resolution in resolutions %}
+                <option value="{{ resolution }}">{{ resolution }}</option>
+            {% endfor %}
+        </select>
+        <a href="/descargar-video" class="btn">Descargar Video</a>
     </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+
 {% endblock %}

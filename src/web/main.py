@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from src.app.download import getResolutions
 import os
 
 web_path = os.path.dirname(os.path.abspath(__file__))
@@ -18,3 +19,10 @@ templates = Jinja2Templates(directory=webtemplates_path)
 async def root():
     return templates.TemplateResponse("index.html", {"request": {}})
 
+@app.get("/descargar-video/", response_class=HTMLResponse)
+async def video(request: Request, id_video: str | None = None):
+    if id_video == None:
+        return templates.TemplateResponse("video.html", {"request": request})
+
+    resolutions = getResolutions(id_video)
+    return templates.TemplateResponse("video.html", {"request": request, "id_video": id_video, "resolutions": resolutions})

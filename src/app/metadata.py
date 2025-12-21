@@ -3,8 +3,10 @@ from time import sleep
 import os
 from PIL import Image
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TRCK, APIC
-from formater import formatTitle
+from mutagen.id3 import ID3
+from mutagen.id3._frames import TIT2, TPE1, TALB, TRCK, APIC
+from .formater import formatTitle
+from .data import meta
 
 #############################################################
 # funcion que agrega los metadatos de las canciones
@@ -36,6 +38,10 @@ def metadatos(path, name, path_img):
 
 
     data = meta(name)
+
+    if data is None:
+        print("No se encontraron metadatos para la canción.")
+        return
 
     print("\nLos metadatos encontrados son: ")
     print("Titulo: " + data[0])

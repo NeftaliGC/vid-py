@@ -1,5 +1,5 @@
-from metadata import metadatos
-from download import download, downloadPlaylist, downloadPath
+from .metadata import metadatos
+from .download import download, downloadPlaylist, downloadPath
 
 ############################################################################
 '''
