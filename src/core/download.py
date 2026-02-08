@@ -4,7 +4,7 @@ from tqdm import tqdm
 import json
 from time import sleep
 import os
-from formater import formatTitle, title, formatDescription, set_metadata
+from src.core.formater import formatTitle, title, formatDescription, set_metadata
 
 class YTDLP:
     def __init__(self, outtmpl: str = './temp/%(title)s.%(ext)s', quiet: bool = True) -> None:
@@ -23,6 +23,12 @@ class YTDLP:
     def get_info(self, url: str, to_db:bool = False) -> Dict[str, Any]:
         with YoutubeDL(self.base_opts) as ydl: # type: ignore
             info = ydl.extract_info(url, download=False)
+
+        if info is None:
+            return {
+                'id': '',
+                'title': 'Unknown',
+            }
 
         info_raw = {
             'id': info['id'],
@@ -45,7 +51,8 @@ class YTDLP:
     def get_playlist_info(self, url: str, to_db: bool = False) -> Dict[str, Any]:
         opts = self._build_opts({
             'quiet': True,
-            'extract_flat': True,
+            'extract_flat': 'in_playlist',
+            'ignoreerrors': True,
             'skip_download': True,
 
         })
@@ -62,7 +69,13 @@ class YTDLP:
             if not e:
                 continue
 
-            entries.append(self.get_info(e['url'], to_db=to_db))
+            entries.append({
+                'id': e.get('id'),
+                'title': e.get('title'),
+                'duration': e.get('duration'),
+                'uploader': e.get('uploader'),
+                'url': e.get('url') or e.get('webpage_url'),
+            })
 
         return {
             'id': info.get('id'),
@@ -88,10 +101,13 @@ class YTDLP:
         with YoutubeDL(opts) as ydl: # type: ignore
             ydl.download([url])
 
-    def download_audio_playlist(self, playlist: List[str], quality: str = '192'):
+    def download_audio_playlist(self, playlist: List[str], output_dir: str, quality: str = '192'):
         opts = self._build_opts({
             'format': 'bestaudio/best',
             'writethumbnail': True,
+            'ignoreerrors': True,
+            'concurrent_fragment_downloads': 8,
+            'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
             'postprocessor_hooks': [self._music_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -100,10 +116,9 @@ class YTDLP:
             }],
 
         })
-        
-        for url in playlist:
-            with YoutubeDL(opts) as ydl: # type: ignore
-                ydl.download([url])
+
+        with YoutubeDL(opts) as ydl: # type: ignore
+            ydl.download(playlist)
 
     def _music_hook(self, d):
         info = d.get('info_dict', {})

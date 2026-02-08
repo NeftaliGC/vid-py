@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from src.app.download import getResolutions
+from core.download import getResolutions
 import os
 
 web_path = os.path.dirname(os.path.abspath(__file__))

@@ -1,4 +1,4 @@
-from download import YTDLP
+from src.core.download import YTDLP
 import time
 from rich.live import Live
 from rich.text import Text
@@ -16,7 +16,6 @@ def menu():
     console.print("2- Video")
     console.print("3- Descargar playlist de musica completa")
     console.print("4- Instrucciones")
-    console.print("5- Configuración Sync USB")
     console.print("0- Salir")
 
     return Prompt.ask(
@@ -35,7 +34,6 @@ def countdown(segundos=3):
 def esperar_usuario():
     console.print("\n[green]Presiona Enter para volver al menú...[/]")
     input()
-
 
 def main():
 
@@ -82,7 +80,27 @@ def main():
             countdown(3)
 
         elif(opt == "3"):
-            pass
+            link = input("Escribe el link de la playlist de musica: ")
+
+            with console.status("[bold]Obteniendo información de la playlist...[/]"):
+                playlist = ytdlp.get_playlist_info(link, to_db=True)
+                console.print(f"\n[bold]{playlist['title']}[/]")
+                console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
+                ids = [entry['id'] for entry in playlist['entries']]
+
+            index = Prompt.ask(
+                "¿Deseas descargar toda la playlist o solo desde un indice en adelante?",
+                choices=["1", "2"]
+            )
+
+            if index == "2":
+                start_index = input("Escribe el indice desde donde deseas descargar (Ejemplo: 3): ")
+                ids = ids[int(start_index)-1:]
+
+            with console.status("[bold]Descargando playlist[/], [yellow]esto puede tardar dependiendo del tamaño de la lista[/]"):
+                ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
+                
+            console.print("[green]Playlist descargada con exito.[/]")
 
         elif(opt == "4"):
             console.print("\n[bold]Instrucciones de uso:[/]")

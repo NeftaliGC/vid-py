@@ -53,27 +53,11 @@ def title(rot):
 
 ############################################################
 def formatDescription(inf: Dict[str, Any]) -> Dict[str, str]:
+    desc = inf.get('description', '')
 
-
-    if inf['description'].startswith('Provided'):
-        d = inf['description'].split('\n\n')
-        d.pop(0)
-        d.pop(4)
-        td = d[0].split('·')
-        titulo = td[0]
-        artista = td[1]
-        album = d[1]
-        año = d[3].split(': ')[1].split('-')[0]
-
-        data = {
-            'titulo': titulo,
-            'artista': artista,
-            'album': album,
-            'año': año,
-            'filepath': inf.get('filepath', '')
-        }
-    else:
-        data = {
+    # Caso NO "Provided"
+    if not desc.startswith('Provided to YouTube'):
+        return {
             'titulo': inf.get('title', ''),
             'artista': inf.get('uploader', ''),
             'album': inf.get('title', ''),
@@ -81,7 +65,39 @@ def formatDescription(inf: Dict[str, Any]) -> Dict[str, str]:
             'filepath': inf.get('filepath', '')
         }
 
-    return data
+    lines = [l.strip() for l in desc.splitlines() if l.strip()]
+
+    titulo = artista = album = año = ''
+
+    # Buscar "Título · Artista"
+    for i, line in enumerate(lines):
+        if ' · ' in line:
+            parts = line.split(' · ', 1)
+            titulo = parts[0].strip()
+            artista = parts[1].strip()
+
+            # La línea siguiente suele ser el álbum
+            if i + 1 < len(lines):
+                album = lines[i + 1].strip()
+            break
+
+    # Buscar año (Released on o ℗)
+    for line in lines:
+        if line.startswith('Released on:'):
+            año = line.split(':', 1)[1].strip()[:4]
+            break
+        if line.startswith('℗'):
+            año = line.split()[1]
+            break
+
+    return {
+        'titulo': titulo,
+        'artista': artista,
+        'album': album,
+        'año': año,
+        'filepath': inf.get('filepath', '')
+    }
+
 
 def set_metadata(metadata: Dict[str, str]):
     
