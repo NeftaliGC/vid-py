@@ -1,0 +1,8 @@
+yt-dlp
+tqdm
+moviepy
+spotipy
+mutagen
+Pillow
+fastapi
+rich
