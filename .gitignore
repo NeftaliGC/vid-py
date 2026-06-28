@@ -105,13 +105,13 @@ celerybeat.pid
 # Environments
 .env
 .venv
-correcciones.md
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
 config/
+.vscode/
 
 # Spyder project settings
 .spyderproject
@@ -131,3 +131,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# bin
+*.mp3
+*.mp4
+*.webm
+*.webp
+*.mkv
+*.avi
+*.m4a
+*.m4v
+/temp

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Vid-Py - YouTube Download{% endblock %}
+
+{% block content %}
+
+<div class="container">
+
+    <h1 id="video">Vid-Py YouTube Download</h1>
+    <p>Una herramienta para descargar audio y video de YouTube</p>
+
+    <div class="link-zone">
+        <p>Ingrese el link del video</p>
+        <input type="url" id="youtubeLink" placeholder="https://www.youtube.com/watch?v=..." oninput="mostrarMiniatura()">
+    </div>
+
+    <div class="thumbnail-preview" id="thumbnailPreview" style="display: none;">
+        <p>Miniatura del video:</p>
+        <img id="videoThumbnail" src="" alt="Miniatura del video de YouTube">
+    </div>
+
+    <div class="button-group">
+        <a href="/descargar-video" class="btn" id="videoBtn">Descargar Video</a>
+        <a href="/descargar-audio" class="btn" id="audioBtn">Descargar Audio</a>
+    </div>
+
+</div>
+{% endblock %}
