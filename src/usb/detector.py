@@ -5,6 +5,7 @@ from typing import List
 
 
 MOUNT_ROOTS = [
+    Path("/mnt"),
     Path(f"/media/{getpass.getuser()}"),
     Path(f"/run/media/{getpass.getuser()}"),
 ]
