@@ -5,6 +5,7 @@ from typing import List
 
 
 MOUNT_ROOTS = [
+    Path("/mnt"),  # cubre /mnt/usb-sdb1, /mnt/usb-sdc1, etc.
     Path(f"/media/{getpass.getuser()}"),
     Path(f"/run/media/{getpass.getuser()}"),
 ]
@@ -16,14 +17,16 @@ def get_mounted_usbs() -> List[Path]:
     las USBs actualmente montadas.
     """
     usbs: List[Path] = []
-
     for root in MOUNT_ROOTS:
         if not root.exists():
             continue
         for entry in root.iterdir():
-            if entry.is_dir():
-                usbs.append(entry)
-
+            if not entry.is_dir():
+                continue
+            # en /mnt solo considerar carpetas usb-*
+            if root == Path("/mnt") and not entry.name.startswith("usb-"):
+                continue
+            usbs.append(entry)
     return usbs
 
 
