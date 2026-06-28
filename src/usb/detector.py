@@ -12,7 +12,8 @@ MOUNT_ROOTS = [
 def _is_mounted(path: Path) -> bool:
     """Verifica que el path sea un mountpoint real, no una carpeta vacía huérfana."""
     try:
-        return path.stat().st_dev != path.parent.stat().st_dev
+        with open('/proc/mounts') as f:
+            return any(line.split()[1] == str(path) for line in f)
     except OSError:
         return False
 
