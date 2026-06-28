@@ -1,4 +1,5 @@
 from src.core.download import YTDLP
+from src.usb.manager import register_usb, auto_sync_all
 import time
 from rich.live import Live
 from rich.text import Text
@@ -16,11 +17,16 @@ def menu():
     console.print("2- Video")
     console.print("3- Descargar playlist de musica completa")
     console.print("4- Instrucciones")
+    console.print("")
+    console.print("[bold cyan]--- USB ---[/]")
+    console.print("5- Registrar USB con playlist")
+    console.print("6- Sincronizar USBs conectadas")
+    console.print("")
     console.print("0- Salir")
 
     return Prompt.ask(
         "\nSelecciona una opción",
-        choices=["1", "2", "3", "4", "5", "0"]
+        choices=["1", "2", "3", "4", "5", "6", "0"]
     )
 
 def countdown(segundos=3):
@@ -114,6 +120,14 @@ def main():
             """)
             console.print("-----------------------------------------------------------------")
 
+            esperar_usuario()
+
+        elif opt == "5":
+            register_usb()
+            esperar_usuario()
+
+        elif opt == "6":
+            auto_sync_all()
             esperar_usuario()
 
         elif(opt == "0"):
