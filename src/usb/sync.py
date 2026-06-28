@@ -112,7 +112,6 @@ def sync_usb(db_path: Path) -> None:
                     quality="192",
                     extra_hooks=[on_track_finished],
                     sleep_range=(2, 8),
-                    throttle_rate="2M",
                     concurrent=2,
                 )
             except Exception as e:

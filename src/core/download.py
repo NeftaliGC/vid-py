@@ -136,7 +136,6 @@ class YTDLP:
         quality: str = '192',
         extra_hooks: List = [],
         sleep_range: tuple = (2, 8),
-        throttle_rate: str = '2M',
         concurrent: int = 2,
     ):
         """
@@ -151,7 +150,7 @@ class YTDLP:
             'writethumbnail': True,
             'ignoreerrors': True,
             'concurrent_fragment_downloads': concurrent,
-            'ratelimit': throttle_rate,
+            'ratelimit': 2 * 1024 * 1024,
             'sleep_interval': sleep_range[0],
             'max_sleep_interval': sleep_range[1],
             'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
