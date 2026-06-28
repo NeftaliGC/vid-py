@@ -39,7 +39,7 @@ def sync_usb(db_path: Path) -> None:
     title    = playlist_row["title"]
     usb_root = db_path.parent
 
-    ytdlp = YTDLP(outtmpl=str(usb_root / "%(title)s.%(ext)s"))
+    ytdlp = YTDLP(outtmpl=str(usb_root / "%(title)s [%(id)s].%(ext)s"))
 
     # Retomar desde donde quedó (por defecto 1)
     start_offset    = get_sync_offset(db_path)
