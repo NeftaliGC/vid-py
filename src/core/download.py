@@ -144,7 +144,6 @@ class YTDLP:
         - Sleep aleatorio entre canciones
         - Menos concurrencia
         """
-        hooks = [self._music_hook] + extra_hooks
         opts = self._build_opts({
             'format': 'bestaudio/best',
             'writethumbnail': True,
@@ -154,7 +153,8 @@ class YTDLP:
             'sleep_interval': sleep_range[0],
             'max_sleep_interval': sleep_range[1],
             'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
-            'postprocessor_hooks': hooks,
+            'progress_hooks':extra_hooks,
+            'postprocessor_hooks': [self._music_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
