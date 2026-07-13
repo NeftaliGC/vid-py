@@ -44,7 +44,7 @@ def esperar_usuario():
 def main():
 
     cwd = Path.cwd()
-    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s.%(ext)s')
+    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s')
 
     while True:
         opt =  menu()
