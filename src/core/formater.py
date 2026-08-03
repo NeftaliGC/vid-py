@@ -4,6 +4,10 @@ from mutagen.id3 import ID3
 from mutagen.id3._frames import TIT2, TPE1, TALB, TDRC, APIC
 from PIL import Image
 import os
+import re
+import unicodedata
+
+INVALID_CHARS = r'[<>:"/\\|?*;.]'
 
 ############################################################
 '''
@@ -12,22 +16,24 @@ title = nombre del archivo
 
 return Titulo reformateado sin caracteres incompatibles
 '''
-def formatTitle(title):
-    titleFormat = ""
-    add = ""
+def formatTitle(title: str) -> str:
+    # Elimina acentos y cualquier carácter no ASCII (emojis incluidos)
+    title = (
+        unicodedata.normalize("NFKD", title)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
 
-    for char in title:
-        for c in {"<", ">", ":", '"', "|", "?", "*", "/", ";", "."}:
-            if(char != c):
-                add = char
-            else:
-                add = " "
-                break
-                
-        titleFormat += add
-        add = ""
+    #Mantener únicamente ASCII imprimible
+    title = re.sub(r"[^\x20-\x7E]", " ", title)
 
-    return titleFormat
+    # Reemplazar caracteres inválidos para nombres de archivo
+    title = re.sub(r'[<>:"/\\|?*;.]', " ", title)
+
+    # Colapsar espacios
+    title = re.sub(r"\s+", " ", title).strip()
+    
+    return title
 
 ############################################################
 '''

@@ -39,7 +39,7 @@ def sync_usb(db_path: Path) -> None:
     title    = playlist_row["title"]
     usb_root = db_path.parent
 
-    ytdlp = YTDLP(outtmpl=str(usb_root / "%(title)s.%(ext)s"))
+    ytdlp = YTDLP(outtmpl=str(usb_root / "%(title)s-[%(id)s].%(ext)s"))
 
     # Retomar desde donde quedó (por defecto 1)
     start_offset    = get_sync_offset(db_path)
@@ -93,6 +93,8 @@ def sync_usb(db_path: Path) -> None:
         ) as progress:
             task = progress.add_task(f"Descargando bloque {offset}...", total=len(ids))
 
+            downloaded_in_block = [0]  # mutable para closure
+
             def on_track_finished(d: dict) -> None:
                 if d["status"] != "finished":
                     return
@@ -103,6 +105,9 @@ def sync_usb(db_path: Path) -> None:
                     "title":    info.get("title", ""),
                     "duration": info.get("duration"),
                 })
+                downloaded_in_block[0] += 1
+                # Guardar offset por canción: offset actual + canciones completadas
+                set_sync_offset(db_path, offset + downloaded_in_block[0])
                 progress.advance(task)
 
             try:
@@ -112,13 +117,11 @@ def sync_usb(db_path: Path) -> None:
                     quality="192",
                     extra_hooks=[on_track_finished],
                     sleep_range=(2, 8),
-                    throttle_rate="2M",
                     concurrent=2,
                 )
             except Exception as e:
                 console.print(f"[red]Error durante descarga del bloque: {e}[/]")
-                console.print("[yellow]Guardando offset. Se reanudará aquí en el próximo sync.[/]")
-                set_sync_offset(db_path, offset)
+                console.print("[yellow]Offset guardado. Se reanudará en el próximo sync.[/]")
                 return
 
         total_this_sync += len(ids)

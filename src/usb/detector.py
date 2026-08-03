@@ -5,11 +5,18 @@ from typing import List
 
 
 MOUNT_ROOTS = [
-    Path("/mnt"),  # cubre /mnt/usb-sdb1, /mnt/usb-sdc1, etc.
+    Path("/mnt"),
     Path(f"/media/{getpass.getuser()}"),
     Path(f"/run/media/{getpass.getuser()}"),
 ]
 
+def _is_mounted(path: Path) -> bool:
+    """Verifica que el path sea un mountpoint real, no una carpeta vacía huérfana."""
+    try:
+        with open('/proc/mounts') as f:
+            return any(line.split()[1] == str(path) for line in f)
+    except OSError:
+        return False
 
 def get_mounted_usbs() -> List[Path]:
     """
@@ -25,6 +32,8 @@ def get_mounted_usbs() -> List[Path]:
                 continue
             # en /mnt solo considerar carpetas usb-*
             if root == Path("/mnt") and not entry.name.startswith("usb-"):
+                continue
+            if not _is_mounted(entry):
                 continue
             usbs.append(entry)
     return usbs

@@ -44,7 +44,7 @@ def esperar_usuario():
 def main():
 
     cwd = Path.cwd()
-    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s.%(ext)s')
+    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s')
 
     while True:
         opt =  menu()
@@ -135,4 +135,9 @@ def main():
             break
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "sync":
+        # Modo no-interactivo para systemd/udev: sincroniza todas las USBs sin menú
+        auto_sync_all()
+    else:
+        main()

@@ -1,13 +1,12 @@
 from yt_dlp import YoutubeDL
 from typing import Dict, Any, List
-from tqdm import tqdm
 import json
-from time import sleep
+from pathlib import Path
 import os
-from src.core.formater import formatTitle, title, formatDescription, set_metadata
+from src.core.formater import formatTitle, formatDescription, set_metadata
 
 class YTDLP:
-    def __init__(self, outtmpl: str = './temp/%(title)s.%(ext)s', quiet: bool = True, cookies_file: str | None = None) -> None:
+    def __init__(self, outtmpl: str = './temp/%(title)s-[%(id)s].%(ext)s', quiet: bool = True, cookies_file: str | None = None) -> None:
         self.base_opts: Dict[str, Any] = {
             'quiet': quiet,
             'no_warnings': True,
@@ -136,7 +135,6 @@ class YTDLP:
         quality: str = '192',
         extra_hooks: List = [],
         sleep_range: tuple = (2, 8),
-        throttle_rate: str = '2M',
         concurrent: int = 2,
     ):
         """
@@ -145,17 +143,18 @@ class YTDLP:
         - Sleep aleatorio entre canciones
         - Menos concurrencia
         """
-        hooks = [self._music_hook] + extra_hooks
+        prog_hooks = [self._rename_hook] + extra_hooks
         opts = self._build_opts({
             'format': 'bestaudio/best',
             'writethumbnail': True,
             'ignoreerrors': True,
             'concurrent_fragment_downloads': concurrent,
-            'ratelimit': throttle_rate,
+            'ratelimit': 2 * 1024 * 1024,
             'sleep_interval': sleep_range[0],
             'max_sleep_interval': sleep_range[1],
-            'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
-            'postprocessor_hooks': hooks,
+            'outtmpl': f'{output_dir}/%(title)s-[%(id)s].%(ext)s',
+            'progress_hooks':prog_hooks,
+            'postprocessor_hooks': [self._music_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -172,6 +171,7 @@ class YTDLP:
             'writethumbnail': True,
             'extract_flat': True,
             'postprocessor_hooks': [self._music_hook],
+            'progress_hooks': [self._rename_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -183,14 +183,15 @@ class YTDLP:
             ydl.download([url])
 
     def download_audio_playlist(self, playlist: List[str], output_dir: str, quality: str = '192', extra_hooks: List = []):
-        hooks = [self._music_hook] + extra_hooks
+        hooks = [self._rename_hook] + extra_hooks
         opts = self._build_opts({
             'format': 'bestaudio/best',
             'writethumbnail': True,
             'ignoreerrors': True,
             'concurrent_fragment_downloads': 8,
-            'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
-            'postprocessor_hooks': hooks,
+            'outtmpl': f'{output_dir}/%(title)s-[%(id)s].%(ext)s',
+            'progress_hooks': hooks,
+            'postprocessor_hooks': [self._music_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -221,7 +222,29 @@ class YTDLP:
 
         if d['status'] == 'finished':
             set_metadata(metadata)
-            
+        
+    def _rename_hook(self, d):
+        if d["status"] != "finished":
+            return
+
+        info = d["info_dict"]
+
+        filepath = info.get("filepath")
+        if not filepath:
+            return
+
+        old_path = Path(filepath)
+
+        title = formatTitle(info.get("title", "Unknown"))
+        video_id = info.get("id", "")
+
+        new_path = old_path.with_name(
+            f"{title}-[{video_id}]{old_path.suffix}"
+        )
+
+        if new_path != old_path:
+            old_path.rename(new_path)
+            info["filepath"] = str(new_path)
 
     def download_video_mp4(self, url: str, resolution: str = 'best', preset: str = 'mp4_compat'):
         PRESETS = {
