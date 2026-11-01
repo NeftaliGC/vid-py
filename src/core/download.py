@@ -62,14 +62,23 @@ class YTDLP:
         return opts
     
     def get_info(self, url: str, to_db:bool = False) -> Dict[str, Any]:
-        with YoutubeDL(self.base_opts) as ydl: # type: ignore
-            info = ydl.extract_info(url, download=False)
+        """
+        Info de UN video. Lanza ValueError si no se puede obtener o si la URL es una playlist.
+        Con un link `watch?v=...&list=...` toma solo el video (noplaylist).
+        """
+        opts = self._build_opts({'noplaylist': True})
 
+        with YoutubeDL(opts) as ydl: # type: ignore
+            info = ydl.extract_info(url, download=False, process=False)
+            # Sin procesar primero: así una playlist se detecta sin extraer cada video
+            if info and info.get('_type') in ('playlist', 'multi_video'):
+                raise ValueError('La URL es una playlist: usa la opción de playlist.')
+            if info:
+                info = ydl.process_ie_result(info, download=False)
+
+        # Con ignoreerrors=True, yt-dlp devuelve None en vez de lanzar la excepción
         if info is None:
-            return {
-                'id': '',
-                'title': 'Unknown',
-            }
+            raise ValueError('No se pudo obtener la información del video. Revisa el link o las cookies.')
 
         info_raw = {
             'id': info['id'],
@@ -101,6 +110,10 @@ class YTDLP:
         with YoutubeDL(opts) as ydl: # type: ignore
             info = ydl.extract_info(url, download=False)
 
+        # Con ignoreerrors=True, yt-dlp devuelve None en vez de lanzar la excepción
+        if info is None:
+            raise ValueError('No se pudo obtener la playlist. Revisa el link, que sea pública, o las cookies.')
+
         if info.get('_type') != 'playlist':
             raise ValueError('La URL no es una playlist')
 
@@ -117,6 +130,9 @@ class YTDLP:
                 'uploader': e.get('uploader'),
                 'url': e.get('url') or e.get('webpage_url'),
             })
+
+        if not entries:
+            raise ValueError('La playlist está vacía o no tiene videos disponibles.')
 
         return {
             'id': info.get('id'),
@@ -173,7 +189,7 @@ class YTDLP:
         sleep_range: tuple = (2, 8),
         concurrent: int = 2,
         extra_pp_hooks: List = [],
-    ):
+    ) -> int:
         """
         Versión USB-safe de download_audio_playlist.
         - Throttle de velocidad por descarga
@@ -204,10 +220,12 @@ class YTDLP:
         })
 
         with YoutubeDL(opts) as ydl:  # type: ignore
-            ydl.download(playlist)
+            # 0 = todo bien; != 0 = algún error (con ignoreerrors no se lanza excepción)
+            return ydl.download(playlist)
 
-    def download_audio_mp3(self, url: str, quality: str = '192'):
+    def download_audio_mp3(self, url: str, quality: str = '192') -> int:
         opts = self._build_opts({
+            'noplaylist': True,  # un link watch?v=...&list=... baja solo ese video
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'writethumbnail': True,
             'postprocessor_hooks': [self._music_hook],
@@ -229,9 +247,10 @@ class YTDLP:
         })
 
         with YoutubeDL(opts) as ydl: # type: ignore
-            ydl.download([url])
+            # 0 = todo bien; != 0 = algún error (con ignoreerrors no se lanza excepción)
+            return ydl.download([url])
 
-    def download_audio_playlist(self, playlist: List[str], output_dir: str, quality: str = '192', extra_hooks: List = []):
+    def download_audio_playlist(self, playlist: List[str], output_dir: str, quality: str = '192', extra_hooks: List = []) -> int:
         hooks = [self._rename_hook] + extra_hooks
         opts = self._build_opts({
             'format': 'bestaudio/best',
@@ -250,7 +269,8 @@ class YTDLP:
         })
 
         with YoutubeDL(opts) as ydl: # type: ignore
-            ydl.download(playlist)
+            # 0 = todo bien; != 0 = algún error (con ignoreerrors no se lanza excepción)
+            return ydl.download(playlist)
 
     def _music_hook(self, d):
         # Se llama en cada post-proceso ('started' y 'finished'); solo interesa el
@@ -333,11 +353,15 @@ class YTDLP:
         }
         return presets.get(preset, presets['mp4_compat'])
 
-    def download_video_mp4(self, url: str, resolution: int | str = 'best', preset: str = 'mp4_compat'):
-        opts = self._build_opts(self._video_format(resolution, preset))
+    def download_video_mp4(self, url: str, resolution: int | str = 'best', preset: str = 'mp4_compat') -> int:
+        opts = self._build_opts({
+            **self._video_format(resolution, preset),
+            'noplaylist': True,  # un link watch?v=...&list=... baja solo ese video
+        })
 
         with YoutubeDL(opts) as ydl: # type: ignore
-            ydl.download([url])
+            # 0 = todo bien; != 0 = algún error (con ignoreerrors no se lanza excepción)
+            return ydl.download([url])
 
 
 if __name__ == "__main__":

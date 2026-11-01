@@ -43,6 +43,19 @@ def esperar_usuario():
     console.print("\n[green]Presiona Enter para volver al menú...[/]")
     input()
 
+def informar_resultado(ret: int, ok_msg: str, error_msg: str, warning: bool = False) -> None:
+    """
+    Muestra el resultado de una descarga según el código de yt-dlp (0 = éxito).
+    Con error se espera Enter para que el usuario alcance a leer el mensaje.
+    """
+    if ret == 0:
+        console.print(f"[green]{ok_msg}[/]")
+        countdown(3)
+    else:
+        color = "yellow" if warning else "red"
+        console.print(f"\n[{color}]{error_msg}[/]")
+        esperar_usuario()
+
 def main():
 
     cwd = Path.cwd()
@@ -56,24 +69,34 @@ def main():
             link = input("Escribe el link de la cancion: ")
             
             with console.status("[bold]Descargando canción...[/]"):
-                ytdlp.download_audio_mp3(link, quality='192')
+                ret = ytdlp.download_audio_mp3(link, quality='192')
 
-            console.print("[green]Cancion descargada con exito.[/]")
-            countdown(3)
+            informar_resultado(
+                ret,
+                "Cancion descargada con exito.",
+                "No se pudo descargar la canción. Revisa el link o las cookies.",
+            )
 
         elif(opt == "2"):
             link = input("Escribe el link del video: ")
 
-            with console.status("[bold]Obteniendo información del video...[/]"):
-                info = ytdlp.get_info(link)
-                title = info.get('title', 'Video')
-                console.print(f"\n[bold]Título del video:[/] {title}\n")
-                resolutions = info.get('resolutions', [])
+            try:
+                with console.status("[bold]Obteniendo información del video...[/]"):
+                    info = ytdlp.get_info(link)
+            except ValueError as e:
+                console.print(f"\n[red]{e}[/]")
+                esperar_usuario()
+                continue
 
-            res = Prompt.ask(
-                "¿Qué resolución deseas descargar?",
-                choices=[f'{str(r)}p' for r in resolutions if r > 100 and r != 180]
-            )
+            console.print(f"\n[bold]Título del video:[/] {info.get('title', 'Video')}\n")
+            choices = [f'{r}p' for r in info.get('resolutions', []) if r > 100 and r != 180]
+
+            if not choices:
+                console.print("[red]El video no tiene resoluciones de video disponibles para descargar.[/]")
+                esperar_usuario()
+                continue
+
+            res = Prompt.ask("¿Qué resolución deseas descargar?", choices=choices)
 
             height = int(res.removesuffix('p'))
 
@@ -84,19 +107,28 @@ def main():
                 preset = 'mp4_compat'
             
             with console.status("[bold]Descargando video...[/]"):
-                ytdlp.download_video_mp4(link, resolution=height, preset=preset)
+                ret = ytdlp.download_video_mp4(link, resolution=height, preset=preset)
 
-            console.print("[green]Video descargada con exito.[/]")
-            countdown(3)
+            informar_resultado(
+                ret,
+                "Video descargado con exito.",
+                "No se pudo descargar el video. Revisa el link o las cookies.",
+            )
 
         elif(opt == "3"):
             link = input("Escribe el link de la playlist de musica: ")
 
-            with console.status("[bold]Obteniendo información de la playlist...[/]"):
-                playlist = ytdlp.get_playlist_info(link, to_db=True)
-                console.print(f"\n[bold]{playlist['title']}[/]")
-                console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
-                ids = [entry['id'] for entry in playlist['entries']]
+            try:
+                with console.status("[bold]Obteniendo información de la playlist...[/]"):
+                    playlist = ytdlp.get_playlist_info(link, to_db=True)
+            except ValueError as e:
+                console.print(f"\n[red]{e}[/]")
+                esperar_usuario()
+                continue
+
+            console.print(f"\n[bold]{playlist['title']}[/]")
+            console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
+            ids = [entry['id'] for entry in playlist['entries']]
 
             index = Prompt.ask(
                 "¿Deseas descargar toda la playlist o solo desde un indice en adelante?",
@@ -108,9 +140,15 @@ def main():
                 ids = ids[int(start_index)-1:]
 
             with console.status("[bold]Descargando playlist[/], [yellow]esto puede tardar dependiendo del tamaño de la lista[/]"):
-                ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
-                
-            console.print("[green]Playlist descargada con exito.[/]")
+                ret = ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
+
+            # En una playlist, ret != 0 significa que AL MENOS una canción falló
+            informar_resultado(
+                ret,
+                "Playlist descargada con exito.",
+                "Algunas canciones de la playlist no se pudieron descargar (revisa los errores de arriba).",
+                warning=True,
+            )
 
         elif(opt == "4"):
             console.print("\n[bold]Instrucciones de uso:[/]")

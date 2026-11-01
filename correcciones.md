@@ -24,7 +24,7 @@
 ## Manejo de excepciones en: 
 ---
 
-- [ ] Playlist no disponibles → ver auditoría, puntos **A3** y **B10**
+- [X] Playlist no disponibles → ver auditoría, puntos **A3** y **B10** (en la CLI ya se maneja; falta validar el espacio libre en B10)
 - [ ] Manejo de seleccion (Menu) → ver auditoría, punto **A5**
 - [ ] Bloqueo de API
 
@@ -69,17 +69,22 @@ Revisión completa de `src/`. Los bugs marcados como **verificado** se reproduje
     - `_music_hook` solo actúa con `finished` sobre el `.mp3`, y un error de metadata se muestra como aviso sin marcar la descarga como fallida.
   - **Verificado:** `V-uIp-WuD60` (YouTube Music) → `Patient Zero` / `Taylor Swift` / `The Life of a Showgirl: The Encore` / 2026. `mw3kSNIxjqo` (video oficial) → `Patient Zero` / `Taylor Swift` / sin álbum / 2026. Ambos con portada.
 
-- [ ] **A3. `get_info` / `get_playlist_info` truenan si yt-dlp devuelve `None`** — `src/core/download.py`.
-  - **Bug:** con `ignoreerrors=True`, `extract_info` devuelve `None` en lugar de lanzar una excepción (URL inválida, playlist privada, HTTP 403 sin cookies). `get_playlist_info` hace `info.get(...)` sobre `None` y lanza `AttributeError`. `get_info` devuelve `resolutions=[]`, y en la opción 2 `Prompt.ask(choices=[])` deja un prompt imposible de contestar.
-  - **Comportamiento actual:** traceback (opciones 3 y 5) o menú bloqueado (opción 2). **Esperado:** un mensaje "No se pudo obtener la información de la URL" y volver al menú.
-  - **Por qué mejorar:** es el caso más común cuando faltan cookies o se pega mal un link.
-  - **Arreglo propuesto:** lanzar `ValueError` con un mensaje claro cuando `info` es `None` o no trae formatos, y capturarlo en la CLI (opciones 1, 2, 3 y 5).
+- [X] **A3. `get_info` / `get_playlist_info` truenan si yt-dlp devuelve `None`** — `src/core/download.py`. ✅ Corregido.
+  - **Bug:** con `ignoreerrors=True`, `extract_info` devuelve `None` en lugar de lanzar una excepción (URL inválida, playlist privada, HTTP 403 sin cookies). `get_playlist_info` hacía `info.get(...)` sobre `None` y lanzaba `AttributeError`. `get_info` devolvía `{'title': 'Unknown'}` sin resoluciones, y en la opción 2 `Prompt.ask(choices=[])` repetía "Please select one of the available options" para siempre. Además, `get_info` con un link de playlist se colgaba (más de 40 s) extrayendo cada video, y el `ValueError("La URL no es una playlist")` no se capturaba en la opción 3.
+  - **Bug relacionado:** un link de video copiado desde una playlist (`watch?v=…&list=…`) en las opciones 1 o 2 descargaba **la playlist completa** (verificado: 150 videos en lugar de 1).
+  - **Comportamiento anterior:** traceback (opciones 3 y 5), menú bloqueado (opción 2) o descargas masivas no pedidas. **Esperado:** un mensaje claro y volver al menú.
+  - **Arreglo aplicado:**
+    - `get_info` usa `noplaylist`, detecta playlists antes de procesarlas y lanza `ValueError` si no hay info.
+    - `get_playlist_info` lanza `ValueError` si no hay info o si la playlist está vacía.
+    - `download_audio_mp3` y `download_video_mp4` usan `noplaylist`.
+    - La CLI captura los errores en las opciones 2 y 3 y avisa si no hay resoluciones. `register_usb` ya capturaba `ValueError`.
+  - **Verificado:** video inexistente, URL ajena, texto basura, link de playlist en la opción 2 (1 s, sin colgarse), link de video en la opción 3, y `&list=` en la opción 1 (baja un solo mp3).
 
-- [ ] **A4. La CLI siempre dice "descargada con éxito"** — `src/cli/vidpy.py` (opciones 1, 2 y 3).
-  - **Bug:** `ignoreerrors=True` hace que `ydl.download()` no lance excepciones; solo devuelve un código distinto de 0. Los métodos `download_*` descartan ese código.
-  - **Comportamiento actual:** si la descarga falla (403, video privado, sin ffmpeg), igual se muestra "Cancion descargada con exito". **Esperado:** avisar del fallo.
-  - **Por qué mejorar:** el usuario no tiene forma de saber que no se descargó nada.
-  - **Arreglo propuesto:** que los `download_*` devuelvan el código de `ydl.download()` y que la CLI muestre éxito o error según ese valor.
+- [X] **A4. La CLI siempre dice "descargada con éxito"** — `src/cli/vidpy.py` (opciones 1, 2 y 3). ✅ Corregido.
+  - **Bug:** `ignoreerrors=True` hace que `ydl.download()` no lance excepciones; solo devuelve un código distinto de 0, y los métodos `download_*` lo descartaban.
+  - **Comportamiento anterior:** si la descarga fallaba (403, video privado, sin ffmpeg), igual se mostraba "Cancion descargada con exito". En la opción 3, el mensaje se borraba al instante al volver al menú. **Esperado:** avisar del fallo.
+  - **Arreglo aplicado:** los `download_*` devuelven el código de yt-dlp y la nueva función `informar_resultado()` muestra el éxito (con cuenta regresiva) o el error (esperando Enter). En la opción 3, un código distinto de 0 se muestra como aviso amarillo de que al menos una canción falló.
+  - **Verificado:** opción 1 con un video inexistente → mensaje de error. Opciones 1 y 2 con videos válidos → "con éxito" (mp3, y mp4 a 240p según `ffprobe`).
 
 - [ ] **A5. El índice de inicio de la playlist no se valida** — `src/cli/vidpy.py` (opción 3).
   - **Bug:** `int(input(...))` lanza `ValueError` si se escribe texto, y un índice fuera de rango produce una lista vacía sin aviso.
