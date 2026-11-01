@@ -4,14 +4,20 @@ import time
 from rich.live import Live
 from rich.text import Text
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Prompt, IntPrompt
 from pathlib import Path
 
 console = Console()
 
-def menu():
+# Mensajes de validación de Rich en español (por defecto vienen en inglés)
+Prompt.illegal_choice_message = "[prompt.invalid.choice]Selecciona una de las opciones disponibles"
+IntPrompt.validate_error_message = "[prompt.invalid]Escribe un número entero"
+
+def menu(cookies_source: str | None = None):
     console.clear()
     console.rule("[bold]Vid-Py CLI Youtube Downloader[/]")
+    if cookies_source:
+        console.print(f"[dim]Cookies: {cookies_source}[/]")
     console.print("")
     console.print("1- Solo audio")
     console.print("2- Video")
@@ -41,72 +47,129 @@ def esperar_usuario():
     console.print("\n[green]Presiona Enter para volver al menú...[/]")
     input()
 
+def pedir_indice(total: int) -> int:
+    """
+    Pide un índice 1-based entre 1 y `total`, repitiendo hasta que sea válido.
+    (Con int() directo: texto => ValueError, 0 => solo la última canción,
+    negativos => desde el final, mayor al total => 0 canciones.)
+    """
+    while True:
+        n = IntPrompt.ask(f"Escribe el número de la canción desde donde descargar (1-{total})")
+        if 1 <= n <= total:
+            return n
+        console.print(f"[red]Debe ser un número entre 1 y {total}.[/]")
+
+def informar_resultado(ret: int, ok_msg: str, error_msg: str, warning: bool = False) -> None:
+    """
+    Muestra el resultado de una descarga según el código de yt-dlp (0 = éxito).
+    Con error se espera Enter para que el usuario alcance a leer el mensaje.
+    """
+    if ret == 0:
+        console.print(f"[green]{ok_msg}[/]")
+        countdown(3)
+    else:
+        color = "yellow" if warning else "red"
+        console.print(f"\n[{color}]{error_msg}[/]")
+        esperar_usuario()
+
 def main():
 
     cwd = Path.cwd()
-    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s')
+    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s', cookies_from_browser='firefox')
 
     while True:
-        opt =  menu()
+        opt =  menu(ytdlp.cookies_source)
 
         if(opt == "1"):
 
             link = input("Escribe el link de la cancion: ")
             
             with console.status("[bold]Descargando canción...[/]"):
-                ytdlp.download_audio_mp3(link, quality='192')
+                ret = ytdlp.download_audio_mp3(link, quality='192')
 
-            console.print("[green]Cancion descargada con exito.[/]")
-            countdown(3)
+            informar_resultado(
+                ret,
+                "Cancion descargada con exito.",
+                "No se pudo descargar la canción. Revisa el link o las cookies.",
+            )
 
         elif(opt == "2"):
             link = input("Escribe el link del video: ")
 
-            with console.status("[bold]Obteniendo información del video...[/]"):
-                info = ytdlp.get_info(link)
-                title = info.get('title', 'Video')
-                console.print(f"\n[bold]Título del video:[/] {title}\n")
-                resolutions = info.get('resolutions', [])
+            try:
+                with console.status("[bold]Obteniendo información del video...[/]"):
+                    info = ytdlp.get_info(link)
+            except ValueError as e:
+                console.print(f"\n[red]{e}[/]")
+                esperar_usuario()
+                continue
 
-            res = Prompt.ask(
-                "¿Qué resolución deseas descargar?",
-                choices=[f'{str(r)}p' for r in resolutions if r > 100 and r != 180]
-            )
+            console.print(f"\n[bold]Título del video:[/] {info.get('title', 'Video')}\n")
+            choices = [f'{r}p' for r in info.get('resolutions', []) if r > 100 and r != 180]
 
-            if int(res.split('p')[0]) > 720:
+            if not choices:
+                console.print("[red]El video no tiene resoluciones de video disponibles para descargar.[/]")
+                esperar_usuario()
+                continue
+
+            res = Prompt.ask("¿Qué resolución deseas descargar?", choices=choices)
+
+            height = int(res.removesuffix('p'))
+
+            if height > 720:
                 console.print("[yellow]Nota: Se detectó alta resolución, el formato de descarga será MKV.[/]")
                 preset = 'mkv_4k'
             else:
                 preset = 'mp4_compat'
             
             with console.status("[bold]Descargando video...[/]"):
-                ytdlp.download_video_mp4(link, resolution=res, preset=preset)
+                ret = ytdlp.download_video_mp4(link, resolution=height, preset=preset)
 
-            console.print("[green]Video descargada con exito.[/]")
-            countdown(3)
+            informar_resultado(
+                ret,
+                "Video descargado con exito.",
+                "No se pudo descargar el video. Revisa el link o las cookies.",
+            )
 
         elif(opt == "3"):
             link = input("Escribe el link de la playlist de musica: ")
 
-            with console.status("[bold]Obteniendo información de la playlist...[/]"):
-                playlist = ytdlp.get_playlist_info(link, to_db=True)
-                console.print(f"\n[bold]{playlist['title']}[/]")
-                console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
-                ids = [entry['id'] for entry in playlist['entries']]
+            try:
+                with console.status("[bold]Obteniendo información de la playlist...[/]"):
+                    playlist = ytdlp.get_playlist_info(link, to_db=True)
+            except ValueError as e:
+                console.print(f"\n[red]{e}[/]")
+                esperar_usuario()
+                continue
+
+            console.print(f"\n[bold]{playlist['title']}[/]")
+            console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
+            ids = [entry['id'] for entry in playlist['entries'] if entry.get('id')]
 
             index = Prompt.ask(
-                "¿Deseas descargar toda la playlist o solo desde un indice en adelante?",
+                "¿Qué deseas descargar? [bold]1[/] = toda la playlist, "
+                "[bold]2[/] = desde una canción en adelante",
                 choices=["1", "2"]
             )
 
             if index == "2":
-                start_index = input("Escribe el indice desde donde deseas descargar (Ejemplo: 3): ")
-                ids = ids[int(start_index)-1:]
+                start_index = pedir_indice(len(ids))
+                ids = ids[start_index - 1:]
+                if len(ids) == 1:
+                    console.print(f"[dim]Se descargará 1 canción (la {start_index}).[/]")
+                else:
+                    console.print(f"[dim]Se descargarán {len(ids)} canciones (de la {start_index} a la {start_index + len(ids) - 1}).[/]")
 
             with console.status("[bold]Descargando playlist[/], [yellow]esto puede tardar dependiendo del tamaño de la lista[/]"):
-                ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
-                
-            console.print("[green]Playlist descargada con exito.[/]")
+                ret = ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
+
+            # En una playlist, ret != 0 significa que AL MENOS una canción falló
+            informar_resultado(
+                ret,
+                "Playlist descargada con exito.",
+                "Algunas canciones de la playlist no se pudieron descargar (revisa los errores de arriba).",
+                warning=True,
+            )
 
         elif(opt == "4"):
             console.print("\n[bold]Instrucciones de uso:[/]")
@@ -137,7 +200,8 @@ def main():
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "sync":
-        # Modo no-interactivo para systemd/udev: sincroniza todas las USBs sin menú
-        auto_sync_all()
+        # Modo no-interactivo para systemd/udev: sincroniza todas las USBs sin menú.
+        # Código de salida 1 si alguna USB falló, para que systemd lo marque como fallido.
+        sys.exit(1 if auto_sync_all() else 0)
     else:
         main()
