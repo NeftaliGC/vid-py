@@ -141,3 +141,7 @@ dmypy.json
 *.m4a
 *.m4v
 /temp
+
+# Cookies de YouTube (contienen la sesion del navegador)
+cookies.txt
+*cookies*.txt

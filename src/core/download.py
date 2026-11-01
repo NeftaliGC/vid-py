@@ -5,8 +5,37 @@ from pathlib import Path
 import os
 from src.core.formater import formatTitle, formatDescription, set_metadata
 
+# cookies.txt por defecto: en la raíz del repo (junto a src/)
+DEFAULT_COOKIES_FILE = Path(__file__).resolve().parents[2] / 'cookies.txt'
+
+
+def resolve_cookies_file(cookies_file: str | None = None) -> Path | None:
+    """
+    Devuelve la ruta ABSOLUTA del archivo de cookies a usar, o None.
+
+    Orden: `cookies_file` -> variable de entorno YTDLP_COOKIES -> <repo>/cookies.txt
+    Exportar el archivo con la extensión "Get cookies.txt LOCALLY" (formato Netscape).
+
+    yt-dlp ignora EN SILENCIO un cookiefile que no existe, así que aquí se valida
+    y se avisa: si la ruta indicada no sirve, no se usan cookies de archivo.
+    """
+    explicit = cookies_file or os.environ.get('YTDLP_COOKIES')
+
+    if explicit:
+        path = Path(explicit).expanduser().resolve()
+        if path.is_file() and os.access(path, os.R_OK):
+            return path
+        print(f"[cookies] No se puede leer el archivo de cookies: {path} (se ignora)")
+        return None
+
+    if DEFAULT_COOKIES_FILE.is_file() and os.access(DEFAULT_COOKIES_FILE, os.R_OK):
+        return DEFAULT_COOKIES_FILE
+
+    return None
+
+
 class YTDLP:
-    def __init__(self, outtmpl: str = './temp/%(title)s-[%(id)s].%(ext)s', quiet: bool = True, cookies_file: str | None = None) -> None:
+    def __init__(self, outtmpl: str = './temp/%(title)s-[%(id)s].%(ext)s', quiet: bool = True, cookies_file: str | None = None, cookies_from_browser: str | tuple | None = None) -> None:
         self.base_opts: Dict[str, Any] = {
             'quiet': quiet,
             'no_warnings': True,
@@ -14,12 +43,18 @@ class YTDLP:
             'outtmpl': outtmpl,
         }
 
-        # Si se pasa un archivo de cookies, se inyecta en todos los opts.
-        # Exportar desde el navegador con la extensión "Get cookies.txt LOCALLY".
-        # Reemplazar simplemente apuntando a un nuevo archivo .txt
-        resolved_cookies = cookies_file or os.environ.get('YTDLP_COOKIES')
-        if resolved_cookies:
-            self.base_opts['cookiefile'] = resolved_cookies
+        # Cookies: ver resolve_cookies_file(). Un archivo .txt tiene prioridad sobre el navegador.
+        self.cookies_source = 'sin cookies'
+        cookie_path = resolve_cookies_file(cookies_file)
+        browser = cookies_from_browser or os.environ.get('YTDLP_COOKIES_FROM_BROWSER')
+
+        if cookie_path:
+            self.base_opts['cookiefile'] = str(cookie_path)
+            self.cookies_source = f'archivo {cookie_path}'
+        elif browser:
+            # yt-dlp acepta ('firefox',) o una tupla (navegador, perfil, keyring, contenedor)
+            self.base_opts['cookiesfrombrowser'] = (browser,) if isinstance(browser, str) else tuple(browser)
+            self.cookies_source = f'navegador {browser}'
 
     def _build_opts(self, extra_opts: Dict[str, Any]) -> Dict[str, Any]:
         opts = self.base_opts.copy()
@@ -120,6 +155,7 @@ class YTDLP:
                 'title':    e.get('title'),
                 'duration': e.get('duration'),
                 'uploader': e.get('uploader'),
+                'index':    e.get('playlist_index'),  # posición real (1-based) en la playlist
             })
 
         return {
@@ -136,6 +172,7 @@ class YTDLP:
         extra_hooks: List = [],
         sleep_range: tuple = (2, 8),
         concurrent: int = 2,
+        extra_pp_hooks: List = [],
     ):
         """
         Versión USB-safe de download_audio_playlist.
@@ -153,8 +190,12 @@ class YTDLP:
             'sleep_interval': sleep_range[0],
             'max_sleep_interval': sleep_range[1],
             'outtmpl': f'{output_dir}/%(title)s-[%(id)s].%(ext)s',
-            'progress_hooks':prog_hooks,
-            'postprocessor_hooks': [self._music_hook],
+            # Con final_ext yt-dlp reconoce el .mp3 ya existente y no lo vuelve a bajar
+            'final_ext': 'mp3',
+            'progress_hooks': prog_hooks,
+            # Los hooks extra van primero: registran la canción en cuanto el .mp3 existe,
+            # aunque luego falle la incrustación de la portada en _music_hook
+            'postprocessor_hooks': extra_pp_hooks + [self._music_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -167,9 +208,8 @@ class YTDLP:
 
     def download_audio_mp3(self, url: str, quality: str = '192'):
         opts = self._build_opts({
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'writethumbnail': True,
-            'extract_flat': True,
             'postprocessor_hooks': [self._music_hook],
             'progress_hooks': [self._rename_hook],
             'postprocessors': [{
@@ -177,6 +217,15 @@ class YTDLP:
                 'preferredcodec': 'mp3',
                 'preferredquality': quality,
             }],
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web_embedded', 'mweb'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
         })
 
         with YoutubeDL(opts) as ydl: # type: ignore
@@ -219,10 +268,20 @@ class YTDLP:
         }
 
         metadata = formatDescription(info)
+        metadata['cover'] = self._thumbnail_path(d.get('info_dict', {}))
 
         if d['status'] == 'finished':
             set_metadata(metadata)
         
+    @staticmethod
+    def _thumbnail_path(info: Dict[str, Any]) -> str | None:
+        """Ruta real de la miniatura escrita por yt-dlp (puede ser .webp, .jpg, .png...)."""
+        for thumb in reversed(info.get('thumbnails') or []):
+            path = thumb.get('filepath')
+            if path and os.path.exists(path):
+                return path
+        return None
+
     def _rename_hook(self, d):
         if d["status"] != "finished":
             return

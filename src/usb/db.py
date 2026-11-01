@@ -1,13 +1,23 @@
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterator, Set
 
 
-def get_connection(db_path: Path) -> sqlite3.Connection:
+@contextmanager
+def get_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
+    """
+    Abre una conexión, hace commit (o rollback si hay error) y SIEMPRE la cierra.
+    `with sqlite3.connect(...)` por sí solo no cierra la conexión.
+    """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db(db_path: Path) -> None:
@@ -48,6 +58,12 @@ def get_downloaded_count(db_path: Path) -> int:
     with get_connection(db_path) as conn:
         row = conn.execute("SELECT COUNT(*) as total FROM tracks").fetchone()
         return row["total"] if row else 0
+
+
+def get_downloaded_ids(db_path: Path) -> Set[str]:
+    """IDs de las canciones ya registradas (y descargadas) en la USB."""
+    with get_connection(db_path) as conn:
+        return {row["id"] for row in conn.execute("SELECT id FROM tracks")}
 
 
 def get_sync_offset(db_path: Path) -> int:

@@ -3,6 +3,7 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3
 from mutagen.id3._frames import TIT2, TPE1, TALB, TDRC, APIC
 from PIL import Image
+import io
 import os
 import re
 import unicodedata
@@ -124,43 +125,68 @@ def set_metadata(metadata: Dict[str, str]):
     audio.tags.add(TALB(encoding=3, text=metadata.get('album', ''))) # type: ignore
     audio.tags.add(TDRC(encoding=3, text=metadata.get('año', ''))) # type: ignore
 
-    crop_to_square(path.split(".mp3")[0] + ".webp", "cover_cropped.jpg")
+    cover = find_cover(path, metadata.get('cover'))
 
-    with open("cover_cropped.jpg", "rb") as img:
-        audio.tags.add( # type: ignore
-            APIC(
-                encoding=3,          # UTF-8
-                mime="image/jpeg",   # image/png si es PNG
-                type=3,              # 3 = portada frontal
-                desc="Cover",
-                data=img.read()
+    # Si no hay portada (p. ej. el mp3 ya existía), se guardan los tags sin ella
+    if cover:
+        try:
+            data = crop_to_square(cover)
+        except Exception as e:
+            # Formato que Pillow no sabe abrir u otro error: la canción se queda sin portada
+            print(f"No se pudo procesar la portada {cover}: {e}")
+        else:
+            audio.tags.add( # type: ignore
+                APIC(
+                    encoding=3,          # UTF-8
+                    mime="image/jpeg",   # siempre se re-codifica a JPEG
+                    type=3,              # 3 = portada frontal
+                    desc="Cover",
+                    data=data
+                )
             )
-    )
-        
-    # Elimina la imagen temporal
-    
-    os.remove("cover_cropped.jpg")
+            os.remove(cover)
+
     audio.save()
 
-def crop_to_square(input_path, output_path):
-    img = Image.open(input_path)
+# Formatos en los que yt-dlp puede guardar la miniatura (writethumbnail)
+COVER_EXTS = ('.webp', '.jpg', '.jpeg', '.png', '.avif', '.gif')
 
-    # Importante: JPG no soporta alpha
-    if img.mode != "RGB":
-        img = img.convert("RGB")
+def find_cover(mp3_path: str, hint: str | None = None) -> str | None:
+    """
+    Busca la portada de un mp3.
+    1. `hint`: ruta exacta que reportó yt-dlp (info_dict['thumbnails'][*]['filepath']).
+    2. Si no existe, `<base del mp3>.<ext>` para cada formato conocido.
+    """
+    if hint and os.path.exists(hint):
+        return hint
 
-    w, h = img.size
-    size = min(w, h)
+    base = os.path.splitext(mp3_path)[0]
+    for ext in COVER_EXTS:
+        candidate = base + ext
+        if os.path.exists(candidate):
+            return candidate
 
-    left = (w - size) // 2
-    top = (h - size) // 2
-    right = left + size
-    bottom = top + size
+    return None
 
-    img.crop((left, top, right, bottom)).save(
-        output_path,
-        format="JPEG",
-        quality=95,
-        subsampling=0
-    )
-    os.remove(input_path)
+def crop_to_square(input_path: str) -> bytes:
+    """Recorta la imagen a cuadrado (centrado) y la devuelve como JPEG en memoria."""
+    with Image.open(input_path) as img:
+        # Importante: JPG no soporta alpha
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        w, h = img.size
+        size = min(w, h)
+
+        left = (w - size) // 2
+        top = (h - size) // 2
+
+        buf = io.BytesIO()
+        img.crop((left, top, left + size, top + size)).save(
+            buf,
+            format="JPEG",
+            quality=95,
+            subsampling=0
+        )
+
+    return buf.getvalue()

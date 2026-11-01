@@ -9,9 +9,11 @@ from pathlib import Path
 
 console = Console()
 
-def menu():
+def menu(cookies_source: str | None = None):
     console.clear()
     console.rule("[bold]Vid-Py CLI Youtube Downloader[/]")
+    if cookies_source:
+        console.print(f"[dim]Cookies: {cookies_source}[/]")
     console.print("")
     console.print("1- Solo audio")
     console.print("2- Video")
@@ -44,10 +46,10 @@ def esperar_usuario():
 def main():
 
     cwd = Path.cwd()
-    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s')
+    ytdlp = YTDLP(outtmpl=f'{cwd}/%(title)s-[%(id)s].%(ext)s', cookies_from_browser='firefox')
 
     while True:
-        opt =  menu()
+        opt =  menu(ytdlp.cookies_source)
 
         if(opt == "1"):
 
