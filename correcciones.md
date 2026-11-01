@@ -25,7 +25,7 @@
 ---
 
 - [X] Playlist no disponibles → ver auditoría, puntos **A3** y **B10** (en la CLI ya se maneja; falta validar el espacio libre en B10)
-- [ ] Manejo de seleccion (Menu) → ver auditoría, punto **A5**
+- [X] Manejo de seleccion (Menu) → ver auditoría, punto **A5**
 - [ ] Bloqueo de API
 
 ### Errores no listados que fueron corregidos durante la correccion de otros errores:
@@ -86,11 +86,15 @@ Revisión completa de `src/`. Los bugs marcados como **verificado** se reproduje
   - **Arreglo aplicado:** los `download_*` devuelven el código de yt-dlp y la nueva función `informar_resultado()` muestra el éxito (con cuenta regresiva) o el error (esperando Enter). En la opción 3, un código distinto de 0 se muestra como aviso amarillo de que al menos una canción falló.
   - **Verificado:** opción 1 con un video inexistente → mensaje de error. Opciones 1 y 2 con videos válidos → "con éxito" (mp3, y mp4 a 240p según `ffprobe`).
 
-- [ ] **A5. El índice de inicio de la playlist no se valida** — `src/cli/vidpy.py` (opción 3).
-  - **Bug:** `int(input(...))` lanza `ValueError` si se escribe texto, y un índice fuera de rango produce una lista vacía sin aviso.
-  - **Comportamiento actual:** traceback y la CLI se cierra. **Esperado:** volver a pedir el número.
-  - **Por qué mejorar:** un error de escritura no debería cerrar el programa (relacionado con "Manejo de seleccion (Menu)").
-  - **Arreglo propuesto:** usar `IntPrompt.ask` de Rich validando `1 <= n <= len(ids)`.
+- [X] **A5. El índice de inicio de la playlist no se valida** — `src/cli/vidpy.py` (opción 3). ✅ Corregido.
+  - **Bug:** `ids[int(input(...)) - 1:]` sin validar:
+    - texto, vacío o decimal → `ValueError` y la CLI se cerraba;
+    - `0` → descargaba **solo la última** canción (`ids[-1:]`);
+    - negativos → descargaba desde el final (`-2` → las últimas 3);
+    - mayor al total → 0 canciones y aun así "Playlist descargada con exito".
+  - Además, la pregunta "¿toda la playlist o desde un índice? [1/2]" no decía qué significaba cada número, y los mensajes de validación de Rich salían en inglés.
+  - **Arreglo aplicado:** nueva `pedir_indice(total)` con `IntPrompt`, que repite hasta recibir un número entre 1 y el total. La pregunta explica las opciones y se muestra cuántas canciones se van a descargar. Los mensajes de validación de Rich (`illegal_choice_message`, `validate_error_message`) están en español para toda la CLI. Se descartan entradas sin `id`.
+  - **Verificado:** playlist de 150 canciones con las entradas `abc`, `0`, `-2` y `151` (todas rechazadas) y luego `150` → baja una sola canción.
 
 ### B. Robustez del sync USB (prioridad alta)
 

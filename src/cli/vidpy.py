@@ -4,10 +4,14 @@ import time
 from rich.live import Live
 from rich.text import Text
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Prompt, IntPrompt
 from pathlib import Path
 
 console = Console()
+
+# Mensajes de validación de Rich en español (por defecto vienen en inglés)
+Prompt.illegal_choice_message = "[prompt.invalid.choice]Selecciona una de las opciones disponibles"
+IntPrompt.validate_error_message = "[prompt.invalid]Escribe un número entero"
 
 def menu(cookies_source: str | None = None):
     console.clear()
@@ -42,6 +46,18 @@ def countdown(segundos=3):
 def esperar_usuario():
     console.print("\n[green]Presiona Enter para volver al menú...[/]")
     input()
+
+def pedir_indice(total: int) -> int:
+    """
+    Pide un índice 1-based entre 1 y `total`, repitiendo hasta que sea válido.
+    (Con int() directo: texto => ValueError, 0 => solo la última canción,
+    negativos => desde el final, mayor al total => 0 canciones.)
+    """
+    while True:
+        n = IntPrompt.ask(f"Escribe el número de la canción desde donde descargar (1-{total})")
+        if 1 <= n <= total:
+            return n
+        console.print(f"[red]Debe ser un número entre 1 y {total}.[/]")
 
 def informar_resultado(ret: int, ok_msg: str, error_msg: str, warning: bool = False) -> None:
     """
@@ -128,16 +144,21 @@ def main():
 
             console.print(f"\n[bold]{playlist['title']}[/]")
             console.print(f"[bold]Cantidad de canciones:[/] {len(playlist['entries'])}\n")
-            ids = [entry['id'] for entry in playlist['entries']]
+            ids = [entry['id'] for entry in playlist['entries'] if entry.get('id')]
 
             index = Prompt.ask(
-                "¿Deseas descargar toda la playlist o solo desde un indice en adelante?",
+                "¿Qué deseas descargar? [bold]1[/] = toda la playlist, "
+                "[bold]2[/] = desde una canción en adelante",
                 choices=["1", "2"]
             )
 
             if index == "2":
-                start_index = input("Escribe el indice desde donde deseas descargar (Ejemplo: 3): ")
-                ids = ids[int(start_index)-1:]
+                start_index = pedir_indice(len(ids))
+                ids = ids[start_index - 1:]
+                if len(ids) == 1:
+                    console.print(f"[dim]Se descargará 1 canción (la {start_index}).[/]")
+                else:
+                    console.print(f"[dim]Se descargarán {len(ids)} canciones (de la {start_index} a la {start_index + len(ids) - 1}).[/]")
 
             with console.status("[bold]Descargando playlist[/], [yellow]esto puede tardar dependiendo del tamaño de la lista[/]"):
                 ret = ytdlp.download_audio_playlist(ids, output_dir=f'{cwd}/{playlist["title"]}', quality='192')
