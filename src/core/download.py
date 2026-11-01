@@ -189,6 +189,7 @@ class YTDLP:
         sleep_range: tuple = (2, 8),
         concurrent: int = 2,
         extra_pp_hooks: List = [],
+        match_filter=None,
     ) -> int:
         """
         Versión USB-safe de download_audio_playlist.
@@ -218,6 +219,10 @@ class YTDLP:
                 'preferredquality': quality,
             }],
         })
+        if match_filter is not None:
+            # Se llama antes de cada video, antes de escribir archivos.
+            # Puede lanzar DownloadCancelled para abortar toda la descarga.
+            opts['match_filter'] = match_filter
 
         with YoutubeDL(opts) as ydl:  # type: ignore
             # 0 = todo bien; != 0 = algún error (con ignoreerrors no se lanza excepción)

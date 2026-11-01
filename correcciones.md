@@ -130,10 +130,19 @@ El sync está pensado para correr desatendido (udev/systemd), así que cualquier
   - **Verificado con procesos reales:** P1 sincronizando y P2 un segundo después → P2 "Ya hay un sync en curso… Se omite." (código 0) y P1 termina bien. Al terminar P1, el lock se libera y P3 sincroniza normal. Proceso con el lock matado con `kill -9` → el siguiente sincroniza normal. En la USB solo queda el `.db`.
   - **Pendiente de verificar:** en una USB FAT/exFAT real (en Linux `flock` lo implementa la capa VFS, así que debería funcionar igual).
 
-- [ ] **B9. Si la USB se desconecta a mitad del sync, salen errores de I/O crudos** — `src/usb/sync.py`.
-  - **Qué pasa:** los `OSError` y `sqlite3.OperationalError` no se capturan y se muestra un traceback largo.
-  - **Por qué mejorar:** el progreso ya queda guardado (offset y `tracks`); solo falta un mensaje claro ("USB desconectada, se reanudará en el próximo sync").
-  - **Arreglo propuesto:** capturar esas excepciones en `sync_usb` y salir limpio.
+- [X] **B9. Desconectar la USB a mitad del sync** — `src/usb/sync.py`, `src/usb/db.py`. ✅ Corregido.
+  - **Qué pasaba en realidad** (simulado con descargas reales, haciendo desaparecer la carpeta de la USB tras la primera canción). Era peor que un traceback:
+    1. **yt-dlp recreaba la ruta del punto de montaje y descargaba ahí las canciones restantes** (18 MB en la prueba), fuera de la USB. En un sistema real sería el disco interno, o la RAM (`/run` es tmpfs) si el servicio corre como root.
+    2. **`sqlite3.connect` creaba un `.db` vacío** en la ruta recreada.
+    3. Seguía con todo el bloque (46 s) y terminaba con un error engañoso: `no such table: playlist`.
+  - **Arreglo aplicado:**
+    - `_USBWatch` guarda la identidad (`st_dev`, `st_ino`) de la carpeta de la USB al empezar. Si desaparece, se recrea en otro disco o falta el `.db`, se lanza `USBDesconectada` (subclase de `DownloadCancelled`, que yt-dlp no ignora).
+    - La verificación ocurre en un `match_filter` (antes de cada canción, **antes de escribir nada**), antes de registrar cada canción y antes de cada bloque. Un `OSError`/`sqlite3.Error` con la USB ausente también se convierte en `USBDesconectada`.
+    - `get_connection` abre con `mode=rw` (nunca crea el archivo); solo `init_db` crea la BD.
+    - Mensaje claro, y en el resumen: "USB desconectada durante el sync; se reanudará al reconectarla".
+    - Detalle: yt-dlp vuelve a lanzar la excepción del `match_filter` sin argumentos (`raise break_err()`), por eso el mensaje está definido en la clase.
+  - **Verificado:** con la desconexión simulada, aborta en ~14 s, **no recrea nada fuera de la USB** y muestra el mensaje correcto. Al reconectar, el sync reanuda: no vuelve a bajar la canción que ya estaba, descarga las 3 faltantes y deja las 4 en la BD, sin archivos temporales sobrantes. Funciona con rutas con espacios y caracteres especiales (`Mi USB #1 (ñandú) 100%/PL?x.db`).
+  - **Limitación conocida:** si la USB se desconecta justo mientras ffmpeg escribe el `.mp3`, puede quedar un mp3 truncado que el siguiente sync daría por descargado. Poco probable; habría que convertir a un archivo temporal y renombrar al final.
 
 - [ ] **B10. `register_usb` no valida la playlist ni el espacio libre** — `src/usb/manager.py`.
   - **Qué pasa:** una playlist privada o vacía produce un traceback (por A3) o crea una BD vacía. Tampoco se verifica que quepa en la USB.

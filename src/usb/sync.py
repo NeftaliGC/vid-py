@@ -1,10 +1,14 @@
 import fcntl
+import os
 import random
+import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, MofNCompleteColumn
+
+from yt_dlp.utils import DownloadCancelled
 
 from src.core.download import YTDLP
 from src.usb.db import (
@@ -25,6 +29,45 @@ SLEEP_BETWEEN_BLOCKS = (15, 30)   # segundos entre bloques para no martillar la 
 
 class SyncEnCurso(Exception):
     """Ya hay otro proceso sincronizando esta USB."""
+
+
+class USBDesconectada(DownloadCancelled):
+    """
+    La USB se desconectó durante el sync.
+    Hereda de DownloadCancelled para que yt-dlp NO la ignore (ignoreerrors) y
+    aborte toda la descarga en vez de seguir con las demás canciones.
+
+    El mensaje va en la clase: cuando se lanza desde match_filter, yt-dlp la vuelve
+    a lanzar SIN argumentos (`raise break_err()`) y un mensaje propio se perdería.
+    """
+    msg = "La USB se desconectó durante el sync. El progreso quedó guardado; se reanudará al volver a conectarla."
+
+
+class _USBWatch:
+    """
+    Detecta si la USB sigue conectada.
+
+    Guarda la identidad (st_dev, st_ino) de la carpeta de la USB al empezar. Si la
+    carpeta desaparece, o se recrea como carpeta normal en otro disco (yt-dlp crea
+    los directorios de salida que falten), o falta el .db, la USB ya no está.
+    """
+
+    def __init__(self, usb_root: Path, db_path: Path):
+        self.usb_root = usb_root
+        self.db_path = db_path
+        st = os.stat(usb_root)
+        self._id = (st.st_dev, st.st_ino)
+
+    def disponible(self) -> bool:
+        try:
+            st = os.stat(self.usb_root)
+        except OSError:
+            return False
+        return (st.st_dev, st.st_ino) == self._id and self.db_path.is_file()
+
+    def verificar(self) -> None:
+        if not self.disponible():
+            raise USBDesconectada()
 
 
 @contextmanager
@@ -54,10 +97,17 @@ def sync_usb(db_path: Path) -> bool:
     Lanza SyncEnCurso si otro proceso ya la está sincronizando.
     """
     with _sync_lock(db_path):
-        return _sync_usb(db_path)
+        watch = _USBWatch(db_path.parent, db_path)
+        try:
+            return _sync_usb(db_path, watch)
+        except (OSError, sqlite3.Error) as e:
+            # Errores de I/O o de SQLite con la USB ausente: es una desconexión
+            if not watch.disponible():
+                raise USBDesconectada() from e
+            raise
 
 
-def _sync_usb(db_path: Path) -> bool:
+def _sync_usb(db_path: Path, watch: _USBWatch) -> bool:
     """
     Sincroniza la playlist registrada en la DB contra la USB.
 
@@ -100,6 +150,7 @@ def _sync_usb(db_path: Path) -> bool:
     offset = start_offset
 
     while True:
+        watch.verificar()
         console.print(f"\n[bold cyan]Bloque {offset}–{offset + PAGE_SIZE - 1}[/] — obteniendo metadata...")
 
         try:
@@ -169,6 +220,9 @@ def _sync_usb(db_path: Path) -> bool:
                 if not vid or vid in registered:
                     return
 
+                # Si la USB ya no está, abortar (no registrar ni seguir descargando)
+                watch.verificar()
+
                 try:
                     insert_track(db_path, {
                         "id":       vid,
@@ -192,9 +246,13 @@ def _sync_usb(db_path: Path) -> bool:
                     output_dir=str(usb_root),
                     quality="192",
                     extra_pp_hooks=[on_track_ready],
+                    # Antes de cada canción (antes de escribir nada): ¿sigue la USB?
+                    match_filter=lambda info, incomplete=False: watch.verificar(),
                     sleep_range=(2, 8),
                     concurrent=2,
                 )
+            except USBDesconectada:
+                raise
             except Exception as e:
                 console.print(f"[red]Error durante descarga del bloque: {e}[/]")
                 console.print("[yellow]Offset guardado. Se reanudará en el próximo sync.[/]")

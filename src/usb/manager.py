@@ -5,7 +5,7 @@ from rich.prompt import Prompt
 from src.core.download import YTDLP
 from src.usb.detector import get_mounted_usbs, is_vidpy_usb, get_db_path
 from src.usb.db import init_db, insert_playlist
-from src.usb.sync import sync_usb, SyncEnCurso
+from src.usb.sync import sync_usb, SyncEnCurso, USBDesconectada
 
 console = Console()
 
@@ -79,6 +79,8 @@ def register_usb() -> None:
         sync_usb(db_path)
     except SyncEnCurso:
         console.print("[yellow]Ya hay un sync en curso para esta USB (otro proceso).[/]")
+    except USBDesconectada as e:
+        console.print(f"[yellow]{e.msg}[/]")  # msg de la clase (ver USBDesconectada)
 
 
 def auto_sync_all() -> int:
@@ -111,6 +113,10 @@ def auto_sync_all() -> int:
                 ok.append(usb.name)
             else:
                 failed.append((usb.name, "sync incompleto, se reanudará en el próximo sync"))
+        except USBDesconectada:
+            console.print(f"[yellow]La USB {usb.name} se desconectó durante el sync. "
+                          f"El progreso quedó guardado; se reanudará al volver a conectarla.[/]")
+            failed.append((usb.name, "USB desconectada durante el sync; se reanudará al reconectarla"))
         except SyncEnCurso:
             # Otro proceso ya la está sincronizando: no es un error
             console.print("[yellow]Ya hay un sync en curso para esta USB (otro proceso). Se omite.[/]")

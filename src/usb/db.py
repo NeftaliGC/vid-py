@@ -6,12 +6,16 @@ from typing import List, Dict, Any, Iterator, Set
 
 
 @contextmanager
-def get_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
+def get_connection(db_path: Path, create: bool = False) -> Iterator[sqlite3.Connection]:
     """
     Abre una conexión, hace commit (o rollback si hay error) y SIEMPRE la cierra.
     `with sqlite3.connect(...)` por sí solo no cierra la conexión.
+
+    Por defecto NO crea el archivo (mode=rw): si la USB se desconectó, sqlite3.connect
+    normal crearía un .db vacío en la ruta del punto de montaje. Solo init_db usa create=True.
     """
-    conn = sqlite3.connect(db_path)
+    mode = "rwc" if create else "rw"
+    conn = sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode={mode}", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         with conn:
@@ -48,7 +52,7 @@ def is_vidpy_db(db_path: Path) -> bool:
 
 def init_db(db_path: Path) -> None:
     """Crea el schema inicial si no existe."""
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, create=True) as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS playlist (
                 id          TEXT NOT NULL,
