@@ -305,28 +305,38 @@ class YTDLP:
             old_path.rename(new_path)
             info["filepath"] = str(new_path)
 
-    def download_video_mp4(self, url: str, resolution: str = 'best', preset: str = 'mp4_compat'):
-        PRESETS = {
+    @staticmethod
+    def _video_format(resolution: int | str = 'best', preset: str = 'mp4_compat') -> Dict[str, str]:
+        """
+        Arma el selector de formato de yt-dlp para un video.
+
+        `resolution` es la altura máxima: 720, "720" o "720p" (o 'best' para no limitar).
+        IMPORTANTE: el filtro debe ser numérico. yt-dlp interpreta `height<=720p` como
+        "720 petabytes" (720pB) y el filtro deja pasar cualquier resolución.
+        """
+        res = str(resolution).strip().lower().removesuffix('p')
+        if res in ('', 'best'):
+            h = ''
+        elif res.isdigit():
+            h = f'[height<={int(res)}]'
+        else:
+            raise ValueError(f'Resolución inválida: {resolution!r}')
+
+        presets = {
             'mp4_compat': {
-                'format': f'bestvideo[vcodec^=avc1][height<={resolution}]'
-                            f'+bestaudio[acodec^=mp4a]/'
-                            f'best[vcodec^=avc1]',
+                'format': f'bestvideo[vcodec^=avc1]{h}+bestaudio[acodec^=mp4a]/'
+                          f'best[vcodec^=avc1]{h}',
                 'merge_output_format': 'mp4',
             },
             'mkv_4k': {
-                'format': f'bestvideo[height<={resolution}]+bestaudio/best',
+                'format': f'bestvideo{h}+bestaudio/best{h}',
                 'merge_output_format': 'mkv',
             },
         }
+        return presets.get(preset, presets['mp4_compat'])
 
-        opts = self._build_opts({
-            'format': (
-                PRESETS.get(preset, PRESETS['mp4_compat'])['format']
-            ),
-            'merge_output_format': (
-                PRESETS.get(preset, PRESETS['mp4_compat'])['merge_output_format']
-            ),
-        })
+    def download_video_mp4(self, url: str, resolution: int | str = 'best', preset: str = 'mp4_compat'):
+        opts = self._build_opts(self._video_format(resolution, preset))
 
         with YoutubeDL(opts) as ydl: # type: ignore
             ydl.download([url])

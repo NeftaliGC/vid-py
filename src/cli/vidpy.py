@@ -75,14 +75,16 @@ def main():
                 choices=[f'{str(r)}p' for r in resolutions if r > 100 and r != 180]
             )
 
-            if int(res.split('p')[0]) > 720:
+            height = int(res.removesuffix('p'))
+
+            if height > 720:
                 console.print("[yellow]Nota: Se detectó alta resolución, el formato de descarga será MKV.[/]")
                 preset = 'mkv_4k'
             else:
                 preset = 'mp4_compat'
             
             with console.status("[bold]Descargando video...[/]"):
-                ytdlp.download_video_mp4(link, resolution=res, preset=preset)
+                ytdlp.download_video_mp4(link, resolution=height, preset=preset)
 
             console.print("[green]Video descargada con exito.[/]")
             countdown(3)
