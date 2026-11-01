@@ -200,7 +200,8 @@ def main():
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "sync":
-        # Modo no-interactivo para systemd/udev: sincroniza todas las USBs sin menú
-        auto_sync_all()
+        # Modo no-interactivo para systemd/udev: sincroniza todas las USBs sin menú.
+        # Código de salida 1 si alguna USB falló, para que systemd lo marque como fallido.
+        sys.exit(1 if auto_sync_all() else 0)
     else:
         main()

@@ -21,7 +21,7 @@ PAGE_SIZE        = 50
 SLEEP_BETWEEN_BLOCKS = (15, 30)   # segundos entre bloques para no martillar la API
 
 
-def sync_usb(db_path: Path) -> None:
+def sync_usb(db_path: Path) -> bool:
     """
     Sincroniza la playlist registrada en la DB contra la USB.
 
@@ -32,12 +32,15 @@ def sync_usb(db_path: Path) -> None:
     - Registra cada canción cuando su .mp3 ya existe (hook de post-proceso)
     - Guarda sync_offset (índice 1-based de la playlist) por canción y por bloque
     - Para cuando un bloque regresa vacío (fin de playlist)
+
+    Retorna True si llegó al final de la playlist (aunque algunas canciones
+    hayan fallado: se reintentan en el próximo sync) y False si abortó antes.
     """
     playlist_row = get_playlist(db_path)
 
     if playlist_row is None:
         console.print("[red]No se encontró una playlist registrada en esta USB.[/]")
-        return
+        return False
 
     url      = playlist_row["url"]
     title    = playlist_row["title"]
@@ -69,7 +72,7 @@ def sync_usb(db_path: Path) -> None:
             console.print(f"[red]Error al obtener bloque: {e}[/]")
             console.print("[yellow]Guardando offset y abortando. Se reanudará en el próximo sync.[/]")
             set_sync_offset(db_path, offset)
-            return
+            return False
 
         entries = page.get("entries", [])
 
@@ -82,7 +85,7 @@ def sync_usb(db_path: Path) -> None:
             else:
                 console.print("[green]Playlist completamente sincronizada.[/]")
             update_last_synced(db_path)
-            return
+            return True
 
         # Posición real (1-based) de cada canción dentro de la playlist.
         # Las entradas nulas/no disponibles también ocupan índice.
@@ -159,7 +162,7 @@ def sync_usb(db_path: Path) -> None:
             except Exception as e:
                 console.print(f"[red]Error durante descarga del bloque: {e}[/]")
                 console.print("[yellow]Offset guardado. Se reanudará en el próximo sync.[/]")
-                return
+                return False
 
         failed = len(pending) - len(registered)
         failed_total    += failed

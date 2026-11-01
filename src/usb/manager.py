@@ -78,26 +78,51 @@ def register_usb() -> None:
     sync_usb(db_path)
 
 
-def auto_sync_all() -> None:
+def auto_sync_all() -> int:
     """
     Escanea todas las USBs montadas y sincroniza las que ya tienen DB vidpy.
     Modo no-interactivo, pensado para udev o alias.
+
+    Cada USB se sincroniza aislada: si una falla (USB defectuosa, error de I/O,
+    BD dañada, red...) se informa y se continúa con las demás.
+    Retorna cuántas USBs fallaron o quedaron incompletas (0 = todo bien).
     """
     usbs = get_mounted_usbs()
 
     if not usbs:
         console.print("[dim]No se detectaron USBs.[/]")
-        return
+        return 0
 
-    synced = 0
+    ok: list[str] = []
+    failed: list[tuple[str, str]] = []
+
     for usb in usbs:
         db_path = get_db_path(usb)
         if db_path is None:
             continue
 
         console.rule(f"[bold]{usb.name}[/]")
-        sync_usb(db_path)
-        synced += 1
+        try:
+            if sync_usb(db_path):
+                ok.append(usb.name)
+            else:
+                failed.append((usb.name, "sync incompleto, se reanudará en el próximo sync"))
+        except Exception as e:
+            # KeyboardInterrupt no es Exception: Ctrl+C sigue deteniendo todo
+            console.print(f"[red]Error al sincronizar {usb.name}: {type(e).__name__}: {e}[/]")
+            console.print("[yellow]Se continúa con la siguiente USB.[/]")
+            failed.append((usb.name, f"{type(e).__name__}: {e}"))
 
-    if synced == 0:
+    if not ok and not failed:
         console.print("[dim]Ninguna USB tiene una playlist registrada.[/]")
+        return 0
+
+    # Resumen (útil en el log de systemd/journalctl)
+    if len(ok) + len(failed) > 1 or failed:
+        console.rule("[bold]Resumen[/]")
+        for name in ok:
+            console.print(f"[green]✓ {name}[/]")
+        for name, reason in failed:
+            console.print(f"[red]✗ {name}[/] [dim]({reason})[/]")
+
+    return len(failed)

@@ -109,10 +109,14 @@ El sync está pensado para correr desatendido (udev/systemd), así que cualquier
     - `is_vidpy_usb` reutiliza `get_db_path`.
   - **Verificado:** USB vacía, `.db` ajeno, `Thumbs.db`, `.db` de 0 bytes, carpeta llamada `x.db` y `._PLabc.db` → no es vidpy. Con un `.db` ajeno que ordena antes que el de vidpy, toma el de vidpy. Ningún archivo ajeno se modifica. `auto_sync_all` con la USB del `agenda.db` → "Ninguna USB tiene una playlist registrada".
 
-- [ ] **B7. Un error en una USB detiene el sync de todas** — `src/usb/manager.py` (`auto_sync_all`).
-  - **Qué pasa:** el ciclo no tiene `try/except`; si una USB falla (por B6, I/O o red), las siguientes no se sincronizan.
-  - **Por qué mejorar:** con varias USBs conectadas, una defectuosa bloquea a las demás.
-  - **Arreglo propuesto:** usar `try/except` por USB, mostrar el error y continuar.
+- [X] **B7. Un error en una USB detiene el sync de todas** — `src/usb/manager.py` (`auto_sync_all`). ✅ Corregido.
+  - **Qué pasaba:** el ciclo no tenía `try/except`. Si una USB fallaba (I/O, BD dañada, red), la excepción cortaba el proceso y las siguientes no se sincronizaban. Además, el modo `sync` siempre terminaba con código 0, así que systemd nunca marcaba el servicio como fallido.
+  - **Arreglo aplicado:**
+    - Cada USB se sincroniza dentro de un `try/except Exception` (Ctrl+C sigue deteniendo todo): se muestra el error y se continúa con la siguiente.
+    - `sync_usb` devuelve `True` si llegó al final de la playlist y `False` si abortó (sin red o error en un bloque).
+    - Al final se muestra un **resumen** (`✓`/`✗` por USB, con el motivo).
+    - `auto_sync_all` devuelve cuántas USBs fallaron, y `python -m src.cli.vidpy sync` termina con **código de salida 1** si hubo alguna.
+  - **Verificado:** 4 USBs simuladas (bien, excepción `OSError [Errno 5]`, bien, sin red) → las 4 se procesan, el resumen marca 2 ✓ y 2 ✗, y el código de salida es 1. Sin errores, sin USBs registradas o sin USBs → código 0.
 
 - [ ] **B8. Nada impide dos syncs simultáneos sobre la misma USB** — `src/usb/sync.py`.
   - **Qué pasa:** udev puede disparar la regla dos veces, o el usuario puede usar la opción 6 mientras corre el servicio. Dos procesos descargarían el mismo archivo a la vez y escribirían en la misma BD.
