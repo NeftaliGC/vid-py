@@ -11,7 +11,7 @@
 
 - [ ] Mejorar manejo de rutas → ver auditoría, punto **C13**
 - [ ] Buscar un metodo para obtener portadas → la portada ya se toma en cualquier formato (ver "Corregido recientemente")
-- [ ] Mejorar la inserccion de metadatos → ver auditoría, punto **A2**
+- [X] Mejorar la inserccion de metadatos → ver auditoría, punto **A2**
 
 ## Estetica
 --- 
@@ -60,11 +60,14 @@ Revisión completa de `src/`. Los bugs marcados como **verificado** se reproduje
   - **Por qué mejorar:** la opción de resolución no sirve para nada y se descargan archivos mucho más pesados de lo pedido.
   - **Arreglo propuesto:** pasar `int(res.rstrip('p'))` a `download_video_mp4`.
 
-- [ ] **A2. Crashes por valores `None` al armar la metadata** — `src/core/formater.py` (`formatDescription`).
-  - **Bug:** `inf.get('description', '')` devuelve `None` si la clave existe con valor `None` (videos sin descripción), y entonces `desc.startswith(...)` lanza `AttributeError`. Lo mismo pasa con `inf.get('upload_date', '')[:4]` (`TypeError`). En la rama "Provided to YouTube", una línea `℗2020` sin espacio hace que `line.split()[1]` lance `IndexError`.
-  - **Comportamiento actual:** la excepción ocurre dentro de `_music_hook`, se pierde la metadata de esa canción y yt-dlp marca la descarga como error. **Esperado:** tags vacíos o parciales, sin excepción.
-  - **Por qué mejorar:** un dato faltante en YouTube no debería romper una descarga que ya terminó.
-  - **Arreglo propuesto:** usar `inf.get(...) or ''` en todos los campos y extraer el año con la regex `\d{4}`.
+- [X] **A2. Crashes por valores `None` al armar la metadata** — `src/core/formater.py` (`formatDescription`) y `src/core/download.py` (`_music_hook`). ✅ Corregido.
+  - **Bug:** `inf.get('description', '')` devuelve `None` si la clave existe con valor `None` (videos sin descripción), y entonces `desc.startswith(...)` lanza `AttributeError`. Lo mismo pasa con `inf.get('upload_date', '')[:4]` (`TypeError`). En la rama "Provided to YouTube", una línea que es solo `℗` hace que `line.split()[1]` lance `IndexError`, y `℗2020 Sello` (sin espacio) guardaba **año = "Sello"**.
+  - **Comportamiento anterior:** la excepción ocurría dentro de `_music_hook` (que además corría en cada evento `started`/`finished` de cada post-proceso). Se perdía la metadata de la canción y yt-dlp marcaba la descarga como error. **Esperado:** tags vacíos o parciales, sin excepción.
+  - **Metadata pobre (mejora incluida):** yt-dlp ya extrae `track`, `artists`, `album` y `release_year` en canciones de YouTube Music, pero se descartaban. En videos oficiales el álbum repetía el título completo del video.
+  - **Arreglo aplicado:**
+    - `formatDescription` usa, en orden: (1) los campos de yt-dlp; (2) el parseo de "Provided to YouTube"; (3) `Artista - Canción` desde el título, sin `(Official Music Video)`, `[Lyrics]`, etc., con el uploader sin `- Topic`/`VEVO` como artista y el álbum vacío. Nunca lanza excepción por campos faltantes.
+    - `_music_hook` solo actúa con `finished` sobre el `.mp3`, y un error de metadata se muestra como aviso sin marcar la descarga como fallida.
+  - **Verificado:** `V-uIp-WuD60` (YouTube Music) → `Patient Zero` / `Taylor Swift` / `The Life of a Showgirl: The Encore` / 2026. `mw3kSNIxjqo` (video oficial) → `Patient Zero` / `Taylor Swift` / sin álbum / 2026. Ambos con portada.
 
 - [ ] **A3. `get_info` / `get_playlist_info` truenan si yt-dlp devuelve `None`** — `src/core/download.py`.
   - **Bug:** con `ignoreerrors=True`, `extract_info` devuelve `None` en lugar de lanzar una excepción (URL inválida, playlist privada, HTTP 403 sin cookies). `get_playlist_info` hace `info.get(...)` sobre `None` y lanza `AttributeError`. `get_info` devuelve `resolutions=[]`, y en la opción 2 `Prompt.ask(choices=[])` deja un prompt imposible de contestar.

@@ -253,26 +253,24 @@ class YTDLP:
             ydl.download(playlist)
 
     def _music_hook(self, d):
+        # Se llama en cada post-proceso ('started' y 'finished'); solo interesa el
+        # momento en que el .mp3 final ya existe.
+        if d.get('status') != 'finished':
+            return
+
         info = d.get('info_dict', {})
-        filename = info.get('filepath')
+        path = info.get('filepath') or ''
+        if not path.endswith('.mp3'):
+            return
 
-        info = {
-            'id': info.get('id'),
-            'title': info.get('title'),
-            'duration': info.get('duration'),
-            'uploader': info.get('uploader'),
-            'upload_date': info.get('upload_date'),
-            'description': info.get('description'),
-            'thumbnail_url': info.get('thumbnail'),
-            'filepath': filename,
-        }
-
-        metadata = formatDescription(info)
-        metadata['cover'] = self._thumbnail_path(d.get('info_dict', {}))
-
-        if d['status'] == 'finished':
+        # Un error en la metadata no debe marcar como fallida una descarga que ya terminó
+        try:
+            metadata = formatDescription(info)
+            metadata['cover'] = self._thumbnail_path(info)
             set_metadata(metadata)
-        
+        except Exception as e:
+            print(f"[metadata] No se pudo escribir la metadata de {path}: {e}")
+
     @staticmethod
     def _thumbnail_path(info: Dict[str, Any]) -> str | None:
         """Ruta real de la miniatura escrita por yt-dlp (puede ser .webp, .jpg, .png...)."""
