@@ -100,10 +100,14 @@ Revisión completa de `src/`. Los bugs marcados como **verificado** se reproduje
 
 El sync está pensado para correr desatendido (udev/systemd), así que cualquier error ahí pasa desapercibido.
 
-- [ ] **B6. Cualquier archivo `.db` marca la USB como "vidpy"** — `src/usb/detector.py` (`is_vidpy_usb`, `get_db_path`).
-  - **Bug:** basta con cualquier `.db` en la raíz (de otra aplicación, o un `Thumbs.db`) para que la USB se trate como registrada. Después `get_playlist` lanza `sqlite3.OperationalError: no such table: playlist`. Con varios `.db`, se toma uno arbitrario según el orden de `iterdir()`.
-  - **Por qué mejorar:** rompe el sync automático y la opción 5 se niega a registrar la USB ("ya tiene una playlist").
-  - **Arreglo propuesto:** que `get_db_path` solo acepte `.db` con las tablas `playlist` y `tracks`, y que `is_vidpy_usb` reutilice `get_db_path`.
+- [X] **B6. Cualquier archivo `.db` marca la USB como "vidpy"** — `src/usb/detector.py` (`is_vidpy_usb`, `get_db_path`). ✅ Corregido.
+  - **Bug:** bastaba con cualquier `.db` en la raíz (de otra aplicación, un `Thumbs.db` o un `._*.db` de macOS) para que la USB se tratara como registrada. Después `get_playlist` lanzaba `sqlite3.OperationalError: no such table: playlist` (reproducido con un `agenda.db` ajeno). Con varios `.db` se tomaba uno arbitrario según el orden de `iterdir()`.
+  - **Efecto:** se rompía el sync automático, y la opción 5 se negaba a registrar la USB ("ya tiene una playlist").
+  - **Arreglo aplicado:**
+    - Nueva `is_vidpy_db()` en `src/usb/db.py`: abre el archivo en **solo lectura** (`mode=ro`) y exige las tablas `playlist` y `tracks`. Si no es SQLite, está vacío, corrupto o sin permisos, cuenta como "no es de vidpy".
+    - `get_db_path` solo acepta `.db` válidos, en orden alfabético.
+    - `is_vidpy_usb` reutiliza `get_db_path`.
+  - **Verificado:** USB vacía, `.db` ajeno, `Thumbs.db`, `.db` de 0 bytes, carpeta llamada `x.db` y `._PLabc.db` → no es vidpy. Con un `.db` ajeno que ordena antes que el de vidpy, toma el de vidpy. Ningún archivo ajeno se modifica. `auto_sync_all` con la USB del `agenda.db` → "Ninguna USB tiene una playlist registrada".
 
 - [ ] **B7. Un error en una USB detiene el sync de todas** — `src/usb/manager.py` (`auto_sync_all`).
   - **Qué pasa:** el ciclo no tiene `try/except`; si una USB falla (por B6, I/O o red), las siguientes no se sincronizan.

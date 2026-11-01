@@ -20,6 +20,32 @@ def get_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+VIDPY_TABLES = {"playlist", "tracks"}
+
+
+def is_vidpy_db(db_path: Path) -> bool:
+    """
+    True si el archivo es una base de datos SQLite de vidpy (tablas `playlist` y `tracks`).
+
+    Se abre en SOLO LECTURA (mode=ro): nunca crea ni modifica archivos ajenos
+    (otra app, Thumbs.db, archivos '._*.db' de macOS...). Cualquier error al
+    abrirla (no es SQLite, sin permisos, está corrupta) se trata como "no es de vidpy".
+    """
+    try:
+        conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            tables = {
+                row[0] for row in
+                conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        return False
+
+    return VIDPY_TABLES <= tables
+
+
 def init_db(db_path: Path) -> None:
     """Crea el schema inicial si no existe."""
     with get_connection(db_path) as conn:
