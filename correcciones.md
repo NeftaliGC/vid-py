@@ -118,10 +118,17 @@ El sync está pensado para correr desatendido (udev/systemd), así que cualquier
     - `auto_sync_all` devuelve cuántas USBs fallaron, y `python -m src.cli.vidpy sync` termina con **código de salida 1** si hubo alguna.
   - **Verificado:** 4 USBs simuladas (bien, excepción `OSError [Errno 5]`, bien, sin red) → las 4 se procesan, el resumen marca 2 ✓ y 2 ✗, y el código de salida es 1. Sin errores, sin USBs registradas o sin USBs → código 0.
 
-- [ ] **B8. Nada impide dos syncs simultáneos sobre la misma USB** — `src/usb/sync.py`.
-  - **Qué pasa:** udev puede disparar la regla dos veces, o el usuario puede usar la opción 6 mientras corre el servicio. Dos procesos descargarían el mismo archivo a la vez y escribirían en la misma BD.
-  - **Por qué mejorar:** archivos corruptos, `database is locked` y descargas duplicadas.
-  - **Arreglo propuesto:** un lock con `fcntl.flock` sobre `<usb>/.vidpy.lock` al inicio de `sync_usb`. Si ya está tomado, avisar y salir.
+- [X] **B8. Nada impide dos syncs simultáneos sobre la misma USB** — `src/usb/sync.py`. ✅ Corregido.
+  - **Qué pasaba:** udev puede disparar la regla dos veces, o el usuario puede usar la opción 6 mientras corre el servicio. Dos procesos descargaban el mismo archivo a la vez y escribían en la misma BD.
+  - **Riesgo:** archivos corruptos, `database is locked` y descargas duplicadas.
+  - **Arreglo aplicado:** `sync_usb` toma un lock exclusivo no bloqueante con `fcntl.flock` **sobre el propio `.db`**:
+    - no crea archivos extra en la USB;
+    - es independiente de los locks POSIX que usa SQLite, así que no interfiere;
+    - el kernel lo libera aunque el proceso muera.
+
+    Si el lock ya está tomado, se lanza `SyncEnCurso`. `auto_sync_all` marca esa USB como **omitida** (no como error: código de salida 0, para que un doble disparo de udev no haga fallar el servicio). `register_usb` también lo captura.
+  - **Verificado con procesos reales:** P1 sincronizando y P2 un segundo después → P2 "Ya hay un sync en curso… Se omite." (código 0) y P1 termina bien. Al terminar P1, el lock se libera y P3 sincroniza normal. Proceso con el lock matado con `kill -9` → el siguiente sincroniza normal. En la USB solo queda el `.db`.
+  - **Pendiente de verificar:** en una USB FAT/exFAT real (en Linux `flock` lo implementa la capa VFS, así que debería funcionar igual).
 
 - [ ] **B9. Si la USB se desconecta a mitad del sync, salen errores de I/O crudos** — `src/usb/sync.py`.
   - **Qué pasa:** los `OSError` y `sqlite3.OperationalError` no se capturan y se muestra un traceback largo.

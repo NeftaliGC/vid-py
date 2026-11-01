@@ -5,7 +5,7 @@ from rich.prompt import Prompt
 from src.core.download import YTDLP
 from src.usb.detector import get_mounted_usbs, is_vidpy_usb, get_db_path
 from src.usb.db import init_db, insert_playlist
-from src.usb.sync import sync_usb
+from src.usb.sync import sync_usb, SyncEnCurso
 
 console = Console()
 
@@ -75,7 +75,10 @@ def register_usb() -> None:
     insert_playlist(db_path, playlist_id, url, playlist_title)
 
     console.print("[green]USB registrada. Iniciando descarga inicial...[/]\n")
-    sync_usb(db_path)
+    try:
+        sync_usb(db_path)
+    except SyncEnCurso:
+        console.print("[yellow]Ya hay un sync en curso para esta USB (otro proceso).[/]")
 
 
 def auto_sync_all() -> int:
@@ -95,6 +98,7 @@ def auto_sync_all() -> int:
 
     ok: list[str] = []
     failed: list[tuple[str, str]] = []
+    skipped: list[str] = []
 
     for usb in usbs:
         db_path = get_db_path(usb)
@@ -107,21 +111,27 @@ def auto_sync_all() -> int:
                 ok.append(usb.name)
             else:
                 failed.append((usb.name, "sync incompleto, se reanudará en el próximo sync"))
+        except SyncEnCurso:
+            # Otro proceso ya la está sincronizando: no es un error
+            console.print("[yellow]Ya hay un sync en curso para esta USB (otro proceso). Se omite.[/]")
+            skipped.append(usb.name)
         except Exception as e:
             # KeyboardInterrupt no es Exception: Ctrl+C sigue deteniendo todo
             console.print(f"[red]Error al sincronizar {usb.name}: {type(e).__name__}: {e}[/]")
             console.print("[yellow]Se continúa con la siguiente USB.[/]")
             failed.append((usb.name, f"{type(e).__name__}: {e}"))
 
-    if not ok and not failed:
+    if not ok and not failed and not skipped:
         console.print("[dim]Ninguna USB tiene una playlist registrada.[/]")
         return 0
 
     # Resumen (útil en el log de systemd/journalctl)
-    if len(ok) + len(failed) > 1 or failed:
+    if len(ok) + len(failed) + len(skipped) > 1 or failed:
         console.rule("[bold]Resumen[/]")
         for name in ok:
             console.print(f"[green]✓ {name}[/]")
+        for name in skipped:
+            console.print(f"[yellow]- {name}[/] [dim](omitida: ya se estaba sincronizando)[/]")
         for name, reason in failed:
             console.print(f"[red]✗ {name}[/] [dim]({reason})[/]")
 

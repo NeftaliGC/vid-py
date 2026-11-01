@@ -1,5 +1,7 @@
+import fcntl
 import random
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, MofNCompleteColumn
@@ -21,7 +23,41 @@ PAGE_SIZE        = 50
 SLEEP_BETWEEN_BLOCKS = (15, 30)   # segundos entre bloques para no martillar la API
 
 
+class SyncEnCurso(Exception):
+    """Ya hay otro proceso sincronizando esta USB."""
+
+
+@contextmanager
+def _sync_lock(db_path: Path):
+    """
+    Lock exclusivo por USB con flock sobre el propio .db (no crea archivos extra).
+
+    - Es independiente de los locks POSIX (fcntl) que usa SQLite: no interfiere.
+    - El kernel lo libera si el proceso muere: nunca queda "trabado".
+    - No bloqueante: si otro proceso lo tiene, lanza SyncEnCurso.
+    """
+    f = open(db_path, "rb")
+    try:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SyncEnCurso(f"Ya hay un sync en curso para {db_path.parent.name}") from None
+        yield
+    finally:
+        f.close()  # cerrar el descriptor libera el flock
+
+
 def sync_usb(db_path: Path) -> bool:
+    """
+    Sincroniza la USB con un lock exclusivo: dos syncs simultáneos sobre la misma
+    USB (udev disparando dos veces, opción 6 + servicio...) no pueden pisarse.
+    Lanza SyncEnCurso si otro proceso ya la está sincronizando.
+    """
+    with _sync_lock(db_path):
+        return _sync_usb(db_path)
+
+
+def _sync_usb(db_path: Path) -> bool:
     """
     Sincroniza la playlist registrada en la DB contra la USB.
 
