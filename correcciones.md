@@ -144,10 +144,23 @@ El sync está pensado para correr desatendido (udev/systemd), así que cualquier
   - **Verificado:** con la desconexión simulada, aborta en ~14 s, **no recrea nada fuera de la USB** y muestra el mensaje correcto. Al reconectar, el sync reanuda: no vuelve a bajar la canción que ya estaba, descarga las 3 faltantes y deja las 4 en la BD, sin archivos temporales sobrantes. Funciona con rutas con espacios y caracteres especiales (`Mi USB #1 (ñandú) 100%/PL?x.db`).
   - **Limitación conocida:** si la USB se desconecta justo mientras ffmpeg escribe el `.mp3`, puede quedar un mp3 truncado que el siguiente sync daría por descargado. Poco probable; habría que convertir a un archivo temporal y renombrar al final.
 
-- [ ] **B10. `register_usb` no valida la playlist ni el espacio libre** — `src/usb/manager.py`.
-  - **Qué pasa:** una playlist privada o vacía produce un traceback (por A3) o crea una BD vacía. Tampoco se verifica que quepa en la USB.
-  - **Por qué mejorar:** se registra una USB que nunca va a sincronizar bien, o se llena a medias.
-  - **Arreglo propuesto:** validar `entries_count > 0` y mostrar el espacio libre (`shutil.disk_usage`) antes de confirmar.
+- [X] **B10. Falta de espacio en la USB** — `src/usb/space.py` (nuevo), `src/usb/manager.py`, `src/usb/sync.py`, `src/usb/db.py`. ✅ Corregido.
+  - **Qué pasaba:** `register_usb` no comparaba el tamaño de la playlist con el espacio libre. Si la USB se llenaba a mitad del sync, cada canción siguiente fallaba al escribir (`ENOSPC`), yt-dlp seguía intentando con todas (con pausas de 2 a 8 s), quedaban `.part` a medias y nada lo informaba.
+  - **Estimación:** mp3 a 192 kbps = 24 KB/s de audio + ~150 KB de portada. La duración ya viene en la info plana de la playlist (150 canciones = 8.8 h ≈ 759 MB). Durante la conversión conviven el audio original y el mp3, así que antes de cada canción se pide el doble de su tamaño estimado. Siempre se dejan 50 MB libres de reserva.
+  - **Arreglo aplicado (las 6 mejoras elegidas):**
+    1. **Estimación al registrar** (opción 5): tamaño estimado contra espacio libre. Si no cabe: "caben aprox. N de M canciones" con tres opciones:
+    2. **Descargar solo lo que quepa** (recomendada): guarda `max_tracks` en la BD y el sync solo baja las primeras N; también "registrar toda" o cancelar.
+    3. **Espacio en el listado de USBs**: "56.8 MB libres de 62.0 MB", en verde, amarillo o rojo según el nivel, con el título, el número de canciones y el límite.
+    4. **Detener el sync si se llena**: el `match_filter` revisa el espacio antes de cada canción (antes de escribir nada) y lanza `USBLlena` (como B9). `ENOSPC` y "database or disk is full" también se traducen a `USBLlena`. En el resumen aparece "USB llena: faltan N canciones (~X MB)" y la salida es con código 1.
+    5. **Pendientes en la BD**: al llenarse se calcula cuántas canciones faltan (respetando el límite) y su tamaño, se guarda en `pending_count`/`pending_bytes`, el listado muestra "⚠ 2 canciones pendientes por falta de espacio (~12.5 MB)", y se borra al completar un sync.
+    6. **Resumen de espacio al final**: "Espacio libre en la USB: 72.2 MB de 90.0 MB (≈ 3 canciones más)", con aviso si queda menos de 200 MB o del 10 %.
+  - **Migración:** `ensure_schema()` agrega las columnas nuevas a las BDs creadas antes. `read_status()` lee en solo lectura y tolera BDs viejas.
+  - **Verificado** con descargas reales y el espacio simulado (capacidad menos lo escrito en la carpeta):
+    - Playlist de 4 canciones en una "USB" de 62 MB → "caben aprox. 2 de 4". Con la opción 1 sincroniza completo con el límite.
+    - Con la opción 2 se detiene al llenarse, registra 2 pendientes y el sync automático sale con código 1 y el motivo.
+    - El listado muestra el aviso. Al liberar espacio descarga las 2 que faltaban y borra los pendientes.
+    - Una BD vieja se migra sola.
+  - **Pendiente:** no hay forma de cambiar o quitar el límite (`max_tracks`) desde la CLI; hoy habría que editar la BD.
 
 ### C. Consistencia y código muerto (prioridad media)
 

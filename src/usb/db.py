@@ -59,7 +59,10 @@ def init_db(db_path: Path) -> None:
                 url         TEXT NOT NULL,
                 title       TEXT NOT NULL,
                 last_synced TEXT,
-                sync_offset INTEGER NOT NULL DEFAULT 1
+                sync_offset INTEGER NOT NULL DEFAULT 1,
+                max_tracks    INTEGER,   -- solo las primeras N canciones (NULL = todas)
+                pending_count INTEGER,   -- canciones pendientes por falta de espacio (NULL = ninguna)
+                pending_bytes INTEGER    -- tamaño estimado de esas canciones
             );
 
             CREATE TABLE IF NOT EXISTS tracks (
@@ -69,6 +72,70 @@ def init_db(db_path: Path) -> None:
                 downloaded_at TEXT NOT NULL
             );
         """)
+
+
+# Columnas agregadas después de la primera versión: (nombre, tipo SQL)
+_PLAYLIST_EXTRA_COLUMNS = [
+    ("max_tracks", "INTEGER"),
+    ("pending_count", "INTEGER"),
+    ("pending_bytes", "INTEGER"),
+]
+
+
+def ensure_schema(db_path: Path) -> None:
+    """Migra BDs creadas con versiones anteriores: agrega las columnas que falten."""
+    with get_connection(db_path) as conn:
+        existentes = {row["name"] for row in conn.execute("PRAGMA table_info(playlist)")}
+        for nombre, tipo in _PLAYLIST_EXTRA_COLUMNS:
+            if nombre not in existentes:
+                conn.execute(f"ALTER TABLE playlist ADD COLUMN {nombre} {tipo}")
+
+
+def set_max_tracks(db_path: Path, max_tracks: int | None) -> None:
+    """Limita el sync a las primeras `max_tracks` canciones de la playlist (None = todas)."""
+    with get_connection(db_path) as conn:
+        conn.execute("UPDATE playlist SET max_tracks = ?", (max_tracks,))
+
+
+def set_pending(db_path: Path, count: int | None, size: int | None) -> None:
+    """Guarda cuántas canciones quedaron pendientes por falta de espacio (None = ninguna)."""
+    with get_connection(db_path) as conn:
+        conn.execute("UPDATE playlist SET pending_count = ?, pending_bytes = ?", (count, size))
+
+
+def read_status(db_path: Path) -> Dict[str, Any] | None:
+    """
+    Resumen de la USB para mostrarlo en el menú, en SOLO LECTURA (no migra ni
+    modifica nada). Tolera BDs viejas sin las columnas nuevas.
+    """
+    try:
+        conn = sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute("SELECT * FROM playlist LIMIT 1").fetchone()
+            tracks = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        return None
+    if row is None:
+        return None
+    keys = row.keys()
+    return {
+        "title": row["title"],
+        "tracks": tracks,
+        "last_synced": row["last_synced"],
+        "max_tracks": row["max_tracks"] if "max_tracks" in keys else None,
+        "pending_count": row["pending_count"] if "pending_count" in keys else None,
+        "pending_bytes": row["pending_bytes"] if "pending_bytes" in keys else None,
+    }
+
+
+def get_average_duration(db_path: Path) -> float | None:
+    """Duración promedio (s) de las canciones descargadas, para estimar cuántas más caben."""
+    with get_connection(db_path) as conn:
+        row = conn.execute("SELECT AVG(duration) FROM tracks WHERE duration > 0").fetchone()
+        return row[0] if row and row[0] else None
 
 
 def insert_playlist(db_path: Path, playlist_id: str, url: str, title: str) -> None:
@@ -127,8 +194,9 @@ def insert_track(db_path: Path, track: Dict[str, Any]) -> None:
 
 def update_last_synced(db_path: Path) -> None:
     with get_connection(db_path) as conn:
+        # Sync completo: ya no hay pendientes por falta de espacio
         conn.execute(
-            "UPDATE playlist SET last_synced = ?, sync_offset = 1",
+            "UPDATE playlist SET last_synced = ?, sync_offset = 1, pending_count = NULL, pending_bytes = NULL",
             (datetime.now().isoformat(),)
         )
 
